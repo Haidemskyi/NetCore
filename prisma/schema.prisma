@@ -1,0 +1,168 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Geographical state details
+model State {
+  id              Int          @id @default(autoincrement())
+  code            String       @unique // e.g., "TN", "FL", "TX"
+  name            String
+  cities          City[]
+  technicians     Technician[]
+  ratePlans       RatePlan[]
+  requiredTechs   Int          @default(0)
+  requirements    String       @default("")
+  companyPerDiem  Decimal      @db.Decimal(10, 2) @default(0.00)
+  employeePerDiem Decimal      @db.Decimal(10, 2) @default(0.00)
+}
+
+// City references within a state
+model City {
+  id      Int      @id @default(autoincrement())
+  name    String
+  stateId Int
+  state   State    @relation(fields: [stateId], references: [id], onDelete: Cascade)
+  jobs    JobLog[]
+}
+
+enum TechStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum WorkType {
+  BURY
+  COAX
+  FIBER
+}
+
+// Tech profiles and relation properties
+model Technician {
+  id          Int            @id @default(autoincrement())
+  name        String
+  phone       String
+  email       String         @unique
+  status      TechStatus     @default(ACTIVE)
+  workType    WorkType       @default(BURY)
+  stateId     Int
+  state       State          @relation(fields: [stateId], references: [id])
+  vehicles    Vehicle[]      // Current and historic vehicles
+  contracts   TechContract[]
+  jobs        JobLog[]
+  documents   TechDocument[] // Uploaded files/contracts
+  payoutType  PayoutType     @default(PERCENTAGE)
+  payoutValue Decimal        @db.Decimal(10, 2) @default(8.00)
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+enum OwnershipType {
+  COMPANY
+  PERSONAL
+}
+
+enum VehicleStatus {
+  ACTIVE
+  MAINTENANCE
+  RETIRED
+}
+
+// Fleet and contractor vehicles
+model Vehicle {
+  id            Int           @id @default(autoincrement())
+  make          String
+  model         String
+  year          Int
+  vin           String        @unique
+  plateNumber   String        @unique
+  ownershipType OwnershipType @default(COMPANY)
+  status        VehicleStatus @default(ACTIVE)
+  technicianId  Int?
+  technician    Technician?   @relation(fields: [technicianId], references: [id])
+}
+
+// Providers pricing grid for different jobs by state
+model RatePlan {
+  id          Int      @id @default(autoincrement())
+  provider    String   // e.g. "Spectrum", "Xfinity", "Cox"
+  stateCode   String   // e.g. "TN", "PA"
+  state       State    @relation(fields: [stateCode], references: [code])
+  code        String   // Job code: e.g. "RDP", "CBI", "NSAD1"
+  description String
+  grossPrice  Decimal  @db.Decimal(10, 2) // Price paid by provider to company
+  employeePrice Decimal  @db.Decimal(10, 2) @default(0.00) // Price paid by company to technician
+  jobs        JobLog[]
+
+  @@unique([provider, stateCode, code])
+}
+
+enum PayoutType {
+  PERCENTAGE
+  FIXED
+}
+
+// Payout contract conditions for a technician (per provider)
+model TechContract {
+  id           Int        @id @default(autoincrement())
+  technicianId Int
+  technician   Technician @relation(fields: [technicianId], references: [id], onDelete: Cascade)
+  provider     String     // e.g. "Spectrum", "Xfinity"
+  payoutType   PayoutType @default(PERCENTAGE)
+  payoutValue  Decimal    @db.Decimal(10, 2) // e.g. 65.00 (%) or 40.00 ($)
+
+  @@unique([technicianId, provider])
+}
+
+// Order dispatch ledger log
+model JobLog {
+  id             Int        @id @default(autoincrement())
+  date           DateTime   @default(now())
+  technicianId   Int
+  technician     Technician @relation(fields: [technicianId], references: [id])
+  ratePlanId     Int
+  ratePlan       RatePlan   @relation(fields: [ratePlanId], references: [id])
+  cityId         Int
+  city           City       @relation(fields: [cityId], references: [id])
+  companyRevenue Decimal    @db.Decimal(10, 2) // Copied grossPrice at time of job completion
+  techPayout     Decimal    @db.Decimal(10, 2) // Calculated tech payout
+  companyProfit  Decimal    @db.Decimal(10, 2) // Revenue - Payout
+}
+
+// Uploaded documents associated with technicians
+model TechDocument {
+  id           String     @id @default(uuid())
+  technicianId Int
+  technician   Technician @relation(fields: [technicianId], references: [id], onDelete: Cascade)
+  name         String
+  fileType     String
+  size         Int
+  uploadedAt   DateTime   @default(now())
+  dataUrl      String     @db.Text // Store base64 dataUrl
+  category     String     @default("OTHER") // CONTRACT, ID, CERTIFICATION, OTHER
+}
+
+// System tasks / todos
+model Todo {
+  id          String   @id @default(uuid())
+  text        String
+  description String?  @db.Text
+  priority    String   @default("LOW") // HIGH, MEDIUM, LOW
+  date        String   // YYYY-MM-DD
+  completed   Boolean  @default(false)
+  creator     String
+  createdAt   DateTime @default(now())
+}
+
+// Administrator accounts
+model Admin {
+  id       Int    @id @default(autoincrement())
+  username String @unique
+  password String
+}
