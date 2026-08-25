@@ -104,6 +104,8 @@ const DICTIONARY: Record<Lang, Record<string, string>> = {
     spec: 'Specialization',
     paystubsTitle: 'Paystubs & Weekly Statements',
     paystubsSubtitle: 'Official weekly CSV & PDF paystubs uploaded from CRM Admin',
+    docsTitle: 'Personal Documents & Agreements',
+    docsSubtitle: 'Official tax forms (W-9), contractor agreements, NDA, and banking setup files',
     reportTitle: 'Report Work Issue / Problem',
     reportSubtitle: 'Submit field problems, site access issues, or equipment failures directly to CRM Tickets & Dispatch',
     jobNumLabel: 'Job Number / Work Order # (Optional)',
@@ -115,19 +117,22 @@ const DICTIONARY: Record<Lang, Record<string, string>> = {
     myTicketsTitle: 'My Reported Issues in CRM',
     completedJobs: 'Completed Orders History',
     noPaystubs: 'No weekly statements uploaded yet. Your weekly paystub files from CRM will appear here automatically.',
+    noDocs: 'No personal documents or agreements stored yet.',
     noJobs: 'No completed jobs recorded yet.',
     noTickets: 'No active work issues reported. Use the form above to submit any field problems.'
   },
   ua: {
-    tabOverview: 'Профіль та Пейстаби',
+    tabOverview: 'Профіль та Виписки',
     tabIssues: 'Проблеми з роботою та підтримка',
     tabPayroll: 'Доходи та розцінки',
     tabKnowledge: 'База знань',
     region: 'Призначений регіон',
     perDiem: 'Особистий Per Diem',
     spec: 'Спеціалізація',
-    paystubsTitle: 'Зарплатні відомості (Paystubs)',
+    paystubsTitle: 'Зарплатні виписки та відомості',
     paystubsSubtitle: 'Офіційні тижневі відомості CSV та PDF, завантажені з CRM',
+    docsTitle: 'Особисті документи та угоди',
+    docsSubtitle: 'Податкові форми (W-9), договори підряду, NDA та банківські реквізити',
     reportTitle: 'Повідомити про проблему з роботою',
     reportSubtitle: 'Надішліть проблему на об’єкті або з обладнанням прямо в тикети CRM',
     jobNumLabel: 'Номер замовлення / Work Order # (Опціонально)',
@@ -139,19 +144,22 @@ const DICTIONARY: Record<Lang, Record<string, string>> = {
     myTicketsTitle: 'Мої повідомлення про проблеми в CRM',
     completedJobs: 'Історія виконаних замовлень',
     noPaystubs: 'Тижневі відомості ще не завантажені.',
+    noDocs: 'Особисті документи та угоди ще не завантажені.',
     noJobs: 'Виконаних замовлень поки немає.',
     noTickets: 'Немає активних повідомлень про проблеми.'
   },
   ru: {
-    tabOverview: 'Профиль и Пейстабы',
+    tabOverview: 'Профиль и Выписки',
     tabIssues: 'Проблемы с работой и поддержка',
     tabPayroll: 'Доходы и расценки',
     tabKnowledge: 'База знаний',
     region: 'Назначенный регион',
     perDiem: 'Личный Per Diem',
     spec: 'Специализация',
-    paystubsTitle: 'Зарплатные ведомости (Paystubs)',
-    paystubsSubtitle: 'Официальные недельные ведомости CSV и PDF, загруженные из CRM',
+    paystubsTitle: 'Зарплатные выписки и ведомости',
+    paystubsSubtitle: 'Официальные недельные выписки CSV и PDF, загруженные из CRM',
+    docsTitle: 'Личные документы и соглашения',
+    docsSubtitle: 'Налоговые формы (W-9), договоры подряда, NDA и банковские реквизиты',
     reportTitle: 'Сообщить о проблеме с работой',
     reportSubtitle: 'Отправьте проблему на объекте или с оборудованием напрямую в тикеты CRM',
     jobNumLabel: 'Номер заказа / Work Order # (Опционально)',
@@ -162,7 +170,8 @@ const DICTIONARY: Record<Lang, Record<string, string>> = {
     downloadPdf: 'Скачать PDF Paystub',
     myTicketsTitle: 'Мои сообщения о проблемах в CRM',
     completedJobs: 'История выполненных заказов',
-    noPaystubs: 'Недельные ведомости еще не загружены.',
+    noPaystubs: 'Недельные выписки еще не загружены.',
+    noDocs: 'Личные документы и соглашения еще не загружены.',
     noJobs: 'Выполненных заказов пока нет.',
     noTickets: 'Нет активных сообщений о проблемах.'
   }
@@ -399,6 +408,41 @@ export default function EmployeePortalDashboard() {
 
   // Group jobs by week
   const totalEarnings = jobs.reduce((acc, j) => acc + Number(j.techPayout), 0);
+
+  // Categorize documents into Paystubs & Statements vs Personal Documents & Contracts
+  const isStatementDoc = (doc: StatementDoc) => {
+    const cat = (doc.category || '').toUpperCase();
+    const name = doc.name.toLowerCase();
+    
+    if (cat === 'PAYMENT' || cat === 'STATEMENT' || cat === 'PAYSTUB') return true;
+    if (cat === 'CONTRACT' || cat === 'TAX' || cat === 'BANKING' || cat === 'NDA' || cat === 'ID' || cat === 'CERTIFICATION') {
+      return false;
+    }
+    
+    if (name.includes('w-9') || name.includes('w9') || name.includes('agreement') || name.includes('nda') || name.includes('direct-deposit') || name.includes('deposit') || name.includes('form') || name.includes('contract')) {
+      return false;
+    }
+    
+    if (name.endsWith('.csv') || name.includes('statement') || name.includes('paystub') || name.includes('выписка') || /^\d{2}\.\d{2}\.\d{4}/.test(name)) {
+      return true;
+    }
+    
+    return true;
+  };
+
+  const paystubDocs = myDocuments.filter(isStatementDoc);
+  const personalDocs = myDocuments.filter(d => !isStatementDoc(d));
+
+  const getDocBadgeLabel = (doc: StatementDoc) => {
+    const cat = (doc.category || '').toUpperCase();
+    if (cat && cat !== 'OTHER') return cat;
+    const name = doc.name.toLowerCase();
+    if (name.includes('w-9') || name.includes('w9') || name.includes('tax')) return 'TAX FORM';
+    if (name.includes('agreement') || name.includes('contract')) return 'AGREEMENT';
+    if (name.includes('nda')) return 'NDA';
+    if (name.includes('direct-deposit') || name.includes('deposit') || name.includes('bank')) return 'BANKING';
+    return 'DOCUMENT';
+  };
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] flex flex-col font-sans text-[#202124]">
@@ -664,47 +708,51 @@ export default function EmployeePortalDashboard() {
               </div>
             </div>
 
-            {/* Middle Section: Paystubs & Weekly Statements (CRM Paystubs) */}
+            {/* Section 1: Paystubs & Weekly Statements (Only Weekly Statements & CSV Paystubs) */}
             <div className="bg-white border border-[#dadce0] rounded-2xl p-6 shadow-sm space-y-4">
               <div className="flex items-center space-x-3 pb-3 border-b border-[#f1f3f4]">
-                <FileSpreadsheet className="w-5 h-5 text-[#1a73e8]" />
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center font-bold shadow-2xs">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
                 <div>
                   <h3 className="font-extrabold text-base text-[#202124]">{t('paystubsTitle')}</h3>
                   <p className="text-xs text-[#5f6368]">{t('paystubsSubtitle')}</p>
                 </div>
               </div>
 
-              <div className="space-y-2.5">
-                {myDocuments && myDocuments.length > 0 ? (
-                  myDocuments.map((doc) => (
+              <div className="space-y-3">
+                {paystubDocs && paystubDocs.length > 0 ? (
+                  paystubDocs.map((doc) => (
                     <div
                       key={doc.id}
-                      className="p-3.5 bg-slate-900 text-white rounded-xl border border-slate-800 flex items-center justify-between shadow-xs hover:border-[#1a73e8] transition-all"
+                      className="p-3.5 sm:p-4 bg-white hover:bg-[#f8f9fa] rounded-xl border border-[#dadce0] hover:border-[#1a73e8] flex items-center justify-between shadow-2xs transition-all group"
                     >
-                      <div className="flex items-center space-x-3">
-                        <div className="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm">
+                      <div className="flex items-center space-x-3 min-w-0 pr-2">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center font-bold text-sm shrink-0">
                           📊
                         </div>
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-bold text-xs text-slate-100">{doc.name}</span>
-                            <span className="px-2 py-0.5 text-[9px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md uppercase tracking-wider">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-xs sm:text-sm text-[#202124] group-hover:text-[#1a73e8] transition-colors truncate">
+                              {doc.name}
+                            </span>
+                            <span className="px-2.5 py-0.5 text-[9px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md uppercase tracking-wider shrink-0">
                               STATEMENT
                             </span>
                           </div>
-                          <p className="text-[10px] text-slate-400 mt-0.5">
+                          <p className="text-[11px] text-[#5f6368] mt-0.5">
                             {doc.size ? `${(doc.size / 1024).toFixed(1)} KB` : '2 KB'} • Uploaded {new Date(doc.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-1.5 shrink-0">
                         <a
                           href={doc.dataUrl.startsWith('data:') ? doc.dataUrl : `/api/documents/serve?id=${doc.id}`}
                           target="_blank"
                           rel="noreferrer"
                           title="Preview Statement"
-                          className="p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-all cursor-pointer"
+                          className="p-2 rounded-lg bg-[#f1f3f4] text-[#5f6368] hover:text-[#1a73e8] hover:bg-[#e8f0fe] border border-transparent hover:border-[#1a73e8]/30 transition-all cursor-pointer"
                         >
                           <ExternalLink className="w-4 h-4" />
                         </a>
@@ -712,7 +760,7 @@ export default function EmployeePortalDashboard() {
                           href={doc.dataUrl.startsWith('data:') ? doc.dataUrl : `/api/documents/serve?id=${doc.id}`}
                           download={doc.name}
                           title="Download Statement File"
-                          className="p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-all cursor-pointer"
+                          className="p-2 rounded-lg bg-[#f1f3f4] text-[#5f6368] hover:text-emerald-700 hover:bg-emerald-50 border border-transparent hover:border-emerald-200 transition-all cursor-pointer"
                         >
                           <Download className="w-4 h-4" />
                         </a>
@@ -721,7 +769,77 @@ export default function EmployeePortalDashboard() {
                   ))
                 ) : (
                   <div className="p-6 text-center text-xs text-[#5f6368] bg-[#f8f9fa] rounded-xl border border-[#dadce0] italic">
-                    No weekly statements uploaded yet. Your weekly paystub files from CRM will appear here automatically.
+                    {t('noPaystubs')}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Section 2: Personal Documents & Contracts (Tax W-9, Contracts, NDA, Direct Deposit) */}
+            <div className="bg-white border border-[#dadce0] rounded-2xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center space-x-3 pb-3 border-b border-[#f1f3f4]">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#1a73e8] border border-blue-100 flex items-center justify-center font-bold shadow-2xs">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-[#202124]">{t('docsTitle')}</h3>
+                  <p className="text-xs text-[#5f6368]">{t('docsSubtitle')}</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {personalDocs && personalDocs.length > 0 ? (
+                  personalDocs.map((doc) => {
+                    const badgeLabel = getDocBadgeLabel(doc);
+                    return (
+                      <div
+                        key={doc.id}
+                        className="p-3.5 sm:p-4 bg-white hover:bg-[#f8f9fa] rounded-xl border border-[#dadce0] hover:border-[#1a73e8] flex items-center justify-between shadow-2xs transition-all group"
+                      >
+                        <div className="flex items-center space-x-3 min-w-0 pr-2">
+                          <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#1a73e8] border border-blue-100 flex items-center justify-center font-bold text-sm shrink-0">
+                            📄
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold text-xs sm:text-sm text-[#202124] group-hover:text-[#1a73e8] transition-colors truncate">
+                                {doc.name}
+                              </span>
+                              <span className="px-2.5 py-0.5 text-[9px] font-extrabold bg-blue-50 text-[#1a73e8] border border-blue-200 rounded-md uppercase tracking-wider shrink-0">
+                                {badgeLabel}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[#5f6368] mt-0.5">
+                              {doc.size ? `${(doc.size / 1024).toFixed(1)} KB` : '2 KB'} • Uploaded {new Date(doc.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-1.5 shrink-0">
+                          <a
+                            href={doc.dataUrl.startsWith('data:') ? doc.dataUrl : `/api/documents/serve?id=${doc.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Preview Document"
+                            className="p-2 rounded-lg bg-[#f1f3f4] text-[#5f6368] hover:text-[#1a73e8] hover:bg-[#e8f0fe] border border-transparent hover:border-[#1a73e8]/30 transition-all cursor-pointer"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                          <a
+                            href={doc.dataUrl.startsWith('data:') ? doc.dataUrl : `/api/documents/serve?id=${doc.id}`}
+                            download={doc.name}
+                            title="Download Document File"
+                            className="p-2 rounded-lg bg-[#f1f3f4] text-[#5f6368] hover:text-[#1a73e8] hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-all cursor-pointer"
+                          >
+                            <Download className="w-4 h-4" />
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="p-6 text-center text-xs text-[#5f6368] bg-[#f8f9fa] rounded-xl border border-[#dadce0] italic">
+                    {t('noDocs')}
                   </div>
                 )}
               </div>
