@@ -24,6 +24,24 @@ export interface State {
   requirements?: string;
   companyPerDiem?: number;
   employeePerDiem?: number;
+  onboardingWaitTime?: string;
+  monthlySalary?: string;
+  description?: string;
+  vacancyCities?: string;
+  defaultCut?: number;
+}
+
+export interface Candidate {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string | null;
+  stateCode: string;
+  status: string; // 'NEW' | 'RATES_SENT' | 'DOCS_REQUESTED' | 'SIGNING_SENT' | 'HIRED' | 'REJECTED'
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface City {
@@ -55,6 +73,8 @@ export interface TechContract {
 export interface Technician {
   id: number;
   name: string;
+  username?: string;
+  password?: string;
   phone: string;
   email: string;
   status: TechStatus;
@@ -64,7 +84,12 @@ export interface Technician {
   vehicle?: Vehicle; // current vehicle
   payoutType: PayoutType;
   payoutValue: number;
+  perDiemOverride?: number | null;
+  carToolsDeduction?: number;
+  companyToolsCost?: number;
+  defaultProvider?: string;
   notes?: string; // Internal admin notes / remarks
+  jobsToday?: number;
 }
 
 export interface TechDocument {
@@ -75,7 +100,8 @@ export interface TechDocument {
   size: number;       // bytes
   uploadedAt: string; // ISO date string
   dataUrl: string;    // base64 data URL for client-side storage
-  category: 'CONTRACT' | 'ID' | 'CERTIFICATION' | 'OTHER';
+  category: 'CONTRACT' | 'ID' | 'CERTIFICATION' | 'OTHER' | 'PAYMENT';
+  batchId?: string | null;
 }
 
 export interface RatePlan {
@@ -103,6 +129,7 @@ export interface JobLog {
   companyRevenue: number;
   techPayout: number;
   companyProfit: number;
+  batchId?: string | null;
 }
 
 export const states: State[] = [];

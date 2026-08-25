@@ -3,82 +3,48 @@ import { prisma } from '@/lib/db';
 
 export async function POST() {
   try {
-    // 1. Delete all existing records in dependency order
-    await prisma.jobLog.deleteMany();
-    await prisma.techDocument.deleteMany();
-    await prisma.vehicle.deleteMany();
-    await prisma.techContract.deleteMany();
-    await prisma.technician.deleteMany();
-    await prisma.ratePlan.deleteMany();
-    await prisma.city.deleteMany();
-    await prisma.state.deleteMany();
-    await prisma.todo.deleteMany();
-    await prisma.admin.deleteMany();
+    // 1. Ensure default Admin accounts exist
+    const adminCount = await prisma.admin.count();
+    if (adminCount === 0) {
+      await prisma.admin.createMany({
+        data: [
+          { username: 'haidemskyi', password: 'Gtatv2005' },
+          { username: 'admin', password: 'admin' },
+        ],
+      });
+    }
 
-    // 2. Reseed default Admin accounts
-    await prisma.admin.createMany({
-      data: [
-        { username: 'haidemskyi', password: 'Gtatv2005' },
-        { username: 'admin', password: 'admin' },
-      ],
-    });
+    // 2. Ensure default States exist without deleting existing states or technicians
+    const defaultStates = [
+      { code: 'TN', name: 'Tennessee', cities: ['Nashville', 'Memphis', 'Knoxville'] },
+      { code: 'FL', name: 'Florida', cities: ['Miami', 'Orlando', 'Tampa'] },
+      { code: 'TX', name: 'Texas', cities: ['Houston', 'Austin', 'Dallas'] },
+      { code: 'PA', name: 'Pennsylvania', cities: ['Philadelphia', 'Pittsburgh', 'Allentown'] },
+    ];
 
-    // 3. Reseed default States & Cities
-    const tn = await prisma.state.create({
-      data: {
-        code: 'TN',
-        name: 'Tennessee',
-        cities: {
-          create: [
-            { name: 'Nashville' },
-            { name: 'Memphis' },
-            { name: 'Knoxville' },
-          ],
-        },
-      },
-    });
-
-    const fl = await prisma.state.create({
-      data: {
-        code: 'FL',
-        name: 'Florida',
-        cities: {
-          create: [
-            { name: 'Miami' },
-            { name: 'Orlando' },
-            { name: 'Tampa' },
-          ],
-        },
-      },
-    });
-
-    const tx = await prisma.state.create({
-      data: {
-        code: 'TX',
-        name: 'Texas',
-        cities: {
-          create: [
-            { name: 'Houston' },
-            { name: 'Austin' },
-            { name: 'Dallas' },
-          ],
-        },
-      },
-    });
-
-    const pa = await prisma.state.create({
-      data: {
-        code: 'PA',
-        name: 'Pennsylvania',
-        cities: {
-          create: [
-            { name: 'Philadelphia' },
-            { name: 'Pittsburgh' },
-            { name: 'Allentown' },
-          ],
-        },
-      },
-    });
+    for (const stateDef of defaultStates) {
+      let state = await prisma.state.findUnique({
+        where: { code: stateDef.code },
+      });
+      if (!state) {
+        state = await prisma.state.create({
+          data: {
+            code: stateDef.code,
+            name: stateDef.name,
+          },
+        });
+      }
+      for (const cityName of stateDef.cities) {
+        const cityExists = await prisma.city.findFirst({
+          where: { stateId: state.id, name: cityName },
+        });
+        if (!cityExists) {
+          await prisma.city.create({
+            data: { name: cityName, stateId: state.id },
+          });
+        }
+      }
+    }
 
     // 4. Reseed default Todos
     const defaultTodos = [

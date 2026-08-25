@@ -1,20 +1,16 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: "--font-inter",
+  weight: ["300", "400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "NetCore CRM",
-  description: "NetCore CRM - Employee & Fleet Management System",
+  title: "NETCORE CRM | NetCore LLC",
+  description: "NetCore CRM - Broadband Infrastructure & Fleet Management System",
 };
 
 export default function RootLayout({
@@ -25,9 +21,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col font-sans bg-[#121316] text-[#e8eaed] selection:bg-[#1a73e8] selection:text-white">
+        {children}
+      </body>
     </html>
   );
 }
+

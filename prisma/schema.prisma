@@ -9,16 +9,21 @@ generator client {
 
 // Geographical state details
 model State {
-  id              Int          @id @default(autoincrement())
-  code            String       @unique // e.g., "TN", "FL", "TX"
-  name            String
-  cities          City[]
-  technicians     Technician[]
-  ratePlans       RatePlan[]
-  requiredTechs   Int          @default(0)
-  requirements    String       @default("")
-  companyPerDiem  Decimal      @db.Decimal(10, 2) @default(0.00)
-  employeePerDiem Decimal      @db.Decimal(10, 2) @default(0.00)
+  id                 Int          @id @default(autoincrement())
+  code               String       @unique // e.g., "TN", "FL", "TX"
+  name               String
+  cities             City[]
+  technicians        Technician[]
+  ratePlans          RatePlan[]
+  requiredTechs      Int          @default(0)
+  requirements       String       @default("")
+  companyPerDiem     Decimal      @default(0.00)
+  employeePerDiem    Decimal      @default(0.00)
+  onboardingWaitTime String       @default("")
+  monthlySalary      String       @default("")
+  description        String       @default("")
+  vacancyCities      String       @default("")
+  defaultCut         Decimal      @default(8.00)
 }
 
 // City references within a state
@@ -44,23 +49,30 @@ enum WorkType {
 
 // Tech profiles and relation properties
 model Technician {
-  id          Int            @id @default(autoincrement())
-  name        String
-  phone       String
-  email       String         @unique
-  status      TechStatus     @default(ACTIVE)
-  workType    WorkType       @default(BURY)
-  stateId     Int
-  state       State          @relation(fields: [stateId], references: [id])
-  vehicles    Vehicle[]      // Current and historic vehicles
-  contracts   TechContract[]
-  jobs        JobLog[]
-  documents   TechDocument[] // Uploaded files/contracts
-  payoutType  PayoutType     @default(PERCENTAGE)
-  payoutValue Decimal        @db.Decimal(10, 2) @default(8.00)
-  notes       String?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id                Int                @id @default(autoincrement())
+  name              String
+  phone             String
+  email             String             @unique
+  username          String?            @unique
+  password          String?
+  status            TechStatus         @default(ACTIVE)
+  workType          WorkType           @default(BURY)
+  stateId           Int
+  state             State              @relation(fields: [stateId], references: [id])
+  vehicles          Vehicle[]          // Current and historic vehicles
+  contracts         TechContract[]
+  jobs              JobLog[]
+  documents         TechDocument[]     // Uploaded files/contracts
+  uploads           TechnicianUpload[] // OCR job uploads from mobile app
+  payoutType        PayoutType         @default(PERCENTAGE)
+  payoutValue       Decimal            @default(8.00)
+  perDiemOverride   Decimal?           // If set, overrides state employeePerDiem
+  carToolsDeduction Decimal            @default(0.00)
+  companyToolsCost  Decimal            @default(0.00)
+  defaultProvider   String?
+  notes             String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 enum OwnershipType {
@@ -90,15 +102,15 @@ model Vehicle {
 
 // Providers pricing grid for different jobs by state
 model RatePlan {
-  id          Int      @id @default(autoincrement())
-  provider    String   // e.g. "Spectrum", "Xfinity", "Cox"
-  stateCode   String   // e.g. "TN", "PA"
-  state       State    @relation(fields: [stateCode], references: [code])
-  code        String   // Job code: e.g. "RDP", "CBI", "NSAD1"
-  description String
-  grossPrice  Decimal  @db.Decimal(10, 2) // Price paid by provider to company
-  employeePrice Decimal  @db.Decimal(10, 2) @default(0.00) // Price paid by company to technician
-  jobs        JobLog[]
+  id            Int      @id @default(autoincrement())
+  provider      String   // e.g. "Spectrum", "Xfinity", "Cox"
+  stateCode     String   // e.g. "TN", "PA"
+  state         State    @relation(fields: [stateCode], references: [code])
+  code          String   // Job code: e.g. "RDP", "CBI", "NSAD1"
+  description   String
+  grossPrice    Decimal  // Price paid by provider to company
+  employeePrice Decimal  @default(0.00) // Price paid by company to technician
+  jobs          JobLog[]
 
   @@unique([provider, stateCode, code])
 }
@@ -115,7 +127,7 @@ model TechContract {
   technician   Technician @relation(fields: [technicianId], references: [id], onDelete: Cascade)
   provider     String     // e.g. "Spectrum", "Xfinity"
   payoutType   PayoutType @default(PERCENTAGE)
-  payoutValue  Decimal    @db.Decimal(10, 2) // e.g. 65.00 (%) or 40.00 ($)
+  payoutValue  Decimal    // e.g. 65.00 (%) or 40.00 ($)
 
   @@unique([technicianId, provider])
 }
@@ -130,9 +142,10 @@ model JobLog {
   ratePlan       RatePlan   @relation(fields: [ratePlanId], references: [id])
   cityId         Int
   city           City       @relation(fields: [cityId], references: [id])
-  companyRevenue Decimal    @db.Decimal(10, 2) // Copied grossPrice at time of job completion
-  techPayout     Decimal    @db.Decimal(10, 2) // Calculated tech payout
-  companyProfit  Decimal    @db.Decimal(10, 2) // Revenue - Payout
+  companyRevenue Decimal    // Copied grossPrice at time of job completion
+  techPayout     Decimal    // Calculated tech payout
+  companyProfit  Decimal    // Revenue - Payout
+  batchId        String?    // UUID or timestamp to group imported jobs
 }
 
 // Uploaded documents associated with technicians
@@ -144,15 +157,16 @@ model TechDocument {
   fileType     String
   size         Int
   uploadedAt   DateTime   @default(now())
-  dataUrl      String     @db.Text // Store base64 dataUrl
+  dataUrl      String     // Store base64 dataUrl
   category     String     @default("OTHER") // CONTRACT, ID, CERTIFICATION, OTHER
+  batchId      String?
 }
 
 // System tasks / todos
 model Todo {
   id          String   @id @default(uuid())
   text        String
-  description String?  @db.Text
+  description String?
   priority    String   @default("LOW") // HIGH, MEDIUM, LOW
   date        String   // YYYY-MM-DD
   completed   Boolean  @default(false)
@@ -166,3 +180,82 @@ model Admin {
   username String @unique
   password String
 }
+
+// Recruiter candidates tracker
+model Candidate {
+  id               Int                 @id @default(autoincrement())
+  firstName        String
+  lastName         String
+  email            String              @unique
+  phone            String?
+  stateCode        String
+  status           String              @default("NEW") // "NEW", "RATES_SENT", "DOCS_REQUESTED", "SIGNING_SENT", "HIRED", "REJECTED"
+  signingToken     String?             @unique
+  signingExpiresAt DateTime?
+  uploadToken      String?             @unique
+  uploadExpiresAt  DateTime?
+  uploadCompleted  Boolean             @default(false)
+  documents        CandidateDocument[]
+  notes            String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+}
+
+// Uploaded documents associated with candidates (6 required onboarding photos/docs)
+model CandidateDocument {
+  id          String    @id @default(uuid())
+  candidateId Int
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  docType     String    // "DL_FRONT", "DL_BACK", "SSN", "W9", "VEHICLE", "TOOLS"
+  name        String
+  fileType    String
+  size        Int
+  dataUrl     String    // Base64 dataUrl or file path
+  uploadedAt  DateTime  @default(now())
+}
+
+// Technician mobile app uploaded OCR jobs
+model TechnicianUpload {
+  id           String     @id @default(uuid())
+  technicianId Int
+  technician   Technician @relation(fields: [technicianId], references: [id], onDelete: Cascade)
+  jobNumber    String     // Extracted OCR job number e.g. "702231"
+  imageUrl     String     // Path to stored image e.g. "/uploads/screenshots/12345.jpg"
+  rawText      String?
+  payoutAmount Decimal    @default(0.00)
+  createdAt    DateTime   @default(now())
+
+  @@unique([technicianId, jobNumber])
+}
+
+enum TicketStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+  ARCHIVED
+}
+
+enum TicketCategory {
+  CONTACT_FORM
+  JOB_APPLICATION
+  GENERAL_INQUIRY
+  EQUIPMENT_QUOTE
+  SUPPORT
+}
+
+// Inquiries, Contact Form Submissions, and Website Leads
+model Ticket {
+  id        String         @id @default(uuid())
+  name      String
+  email     String
+  phone     String?
+  category  TicketCategory @default(CONTACT_FORM)
+  subject   String?
+  message   String
+  status    TicketStatus   @default(NEW)
+  sourceUrl String?
+  notes     String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+

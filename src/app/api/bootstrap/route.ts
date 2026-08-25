@@ -76,7 +76,7 @@ export async function GET() {
 
     // 2. Fetch all data
     const dbStates = await prisma.state.findMany({ orderBy: { id: 'asc' } });
-    const states = dbStates.map(s => ({
+    const states = dbStates.map((s: any) => ({
       id: s.id,
       code: s.code,
       name: s.name,
@@ -84,11 +84,30 @@ export async function GET() {
       requirements: s.requirements,
       companyPerDiem: Number(s.companyPerDiem),
       employeePerDiem: Number(s.employeePerDiem),
+      onboardingWaitTime: s.onboardingWaitTime,
+      monthlySalary: s.monthlySalary,
+      description: s.description,
+      vacancyCities: s.vacancyCities,
+      defaultCut: Number(s.defaultCut || 8.00),
+    }));
+
+    const dbCandidates = await prisma.candidate.findMany({ orderBy: { createdAt: 'desc' } });
+    const candidates = dbCandidates.map((c: any) => ({
+      id: c.id,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      email: c.email,
+      phone: c.phone,
+      stateCode: c.stateCode,
+      status: c.status,
+      notes: c.notes,
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
     }));
     const cities = await prisma.city.findMany({ orderBy: { id: 'asc' } });
     
     const dbRatePlans = await prisma.ratePlan.findMany();
-    const ratePlans = dbRatePlans.map(rp => ({
+    const ratePlans = dbRatePlans.map((rp: any) => ({
       id: rp.id,
       provider: rp.provider,
       stateCode: rp.stateCode,
@@ -97,6 +116,25 @@ export async function GET() {
       grossPrice: Number(rp.grossPrice),
       employeePrice: Number(rp.employeePrice),
     }));
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const todayUploads = await prisma.technicianUpload.findMany({
+      where: {
+        createdAt: {
+          gte: startOfToday,
+        },
+      },
+      select: {
+        technicianId: true,
+      },
+    });
+
+    const todayCountsMap: Record<number, number> = {};
+    for (const u of todayUploads) {
+      todayCountsMap[u.technicianId] = (todayCountsMap[u.technicianId] || 0) + 1;
+    }
 
     const dbTechs = await prisma.technician.findMany({
       include: {
@@ -110,18 +148,25 @@ export async function GET() {
       },
     });
     
-    const technicians = dbTechs.map(t => ({
+    const technicians = dbTechs.map((t: any) => ({
       id: t.id,
       name: t.name,
       phone: t.phone,
       email: t.email,
+      username: t.username ?? undefined,
+      password: t.password ?? undefined,
       status: t.status,
       workType: t.workType,
       stateId: t.stateId,
       stateCode: t.state.code,
       payoutType: t.payoutType,
       payoutValue: Number(t.payoutValue),
+      perDiemOverride: t.perDiemOverride != null ? Number(t.perDiemOverride) : null,
+      carToolsDeduction: Number(t.carToolsDeduction),
+      companyToolsCost: Number(t.companyToolsCost || 0),
+      defaultProvider: t.defaultProvider ?? undefined,
       notes: t.notes ?? undefined,
+      jobsToday: todayCountsMap[t.id] || 0,
       vehicle: t.vehicles[0] ? {
         id: t.vehicles[0].id,
         make: t.vehicles[0].make,
@@ -136,7 +181,7 @@ export async function GET() {
     }));
 
     const dbVehicles = await prisma.vehicle.findMany();
-    const vehicles = dbVehicles.map(v => ({
+    const vehicles = dbVehicles.map((v: any) => ({
       id: v.id,
       make: v.make,
       model: v.model,
@@ -163,7 +208,7 @@ export async function GET() {
       },
     });
     
-    const jobLogs = dbJobs.map(j => ({
+    const jobLogs = dbJobs.map((j: any) => ({
       id: j.id,
       date: j.date.toISOString().split('T')[0],
       technicianId: j.technicianId,
@@ -177,10 +222,11 @@ export async function GET() {
       companyRevenue: Number(j.companyRevenue),
       techPayout: Number(j.techPayout),
       companyProfit: Number(j.companyProfit),
+      batchId: j.batchId,
     }));
 
     const dbDocs = await prisma.techDocument.findMany();
-    const documents = dbDocs.map(d => ({
+    const documents = dbDocs.map((d: any) => ({
       id: d.id,
       technicianId: d.technicianId,
       name: d.name,
@@ -189,6 +235,7 @@ export async function GET() {
       uploadedAt: d.uploadedAt.toISOString(),
       dataUrl: d.dataUrl,
       category: d.category,
+      batchId: d.batchId,
     }));
 
     const dbTodos = await prisma.todo.findMany({
@@ -197,7 +244,7 @@ export async function GET() {
       },
     });
     
-    const todos = dbTodos.map(todo => ({
+    const todos = dbTodos.map((todo: any) => ({
       id: todo.id,
       text: todo.text,
       description: todo.description ?? undefined,
@@ -209,8 +256,24 @@ export async function GET() {
     }));
 
     const dbAdmins = await prisma.admin.findMany();
-    const admins = dbAdmins.map(a => ({
+    const admins = dbAdmins.map((a: any) => ({
       username: a.username,
+    }));
+
+    const dbTickets = await prisma.ticket.findMany({ orderBy: { createdAt: 'desc' } });
+    const tickets = dbTickets.map((tk: any) => ({
+      id: tk.id,
+      name: tk.name,
+      email: tk.email,
+      phone: tk.phone,
+      category: tk.category,
+      subject: tk.subject,
+      message: tk.message,
+      status: tk.status,
+      sourceUrl: tk.sourceUrl,
+      notes: tk.notes,
+      createdAt: tk.createdAt.toISOString(),
+      updatedAt: tk.updatedAt.toISOString(),
     }));
 
     return NextResponse.json({
@@ -223,6 +286,8 @@ export async function GET() {
       documents,
       todos,
       admins,
+      candidates,
+      tickets,
     });
   } catch (error: any) {
     console.error('Error in bootstrap:', error);

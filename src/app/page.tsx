@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   TrendingUp, 
   Users, 
+  UserPlus, 
   DollarSign, 
   Percent, 
   Briefcase, 
@@ -22,6 +23,7 @@ import {
   Sparkles,
   Search,
   Bell,
+  Building2,
   MessageSquare,
   Maximize2,
   ChevronDown,
@@ -31,12 +33,27 @@ import {
   X,
   FileSpreadsheet,
   RotateCcw,
+  RefreshCw,
+  AlertCircle,
   Upload,
   FileText,
   Download,
   File,
   Menu,
-  CheckSquare
+  CheckSquare,
+  Paperclip,
+  Eye,
+  PenTool,
+  LayoutGrid,
+  List,
+  ArrowLeft,
+  CheckCircle2,
+  UserCheck,
+  XCircle,
+  FolderOpen,
+  Link,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import USMap from '../components/USMap';
@@ -61,7 +78,8 @@ import {
   OwnershipType,
   VehicleStatus,
   PayoutType,
-  Todo
+  Todo,
+  Candidate
 } from '../data/mockData';
 
 const sanitizeDescription = (desc?: string): string => {
@@ -97,6 +115,37 @@ export default function Home() {
   const [selectedStateCode, setSelectedStateCode] = useState<string | null>(null);
   const [selectedTechId, setSelectedTechId] = useState<number | null>(null);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+
+  // Theme state (dark / light mode matching site aesthetics)
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('netcore_theme') as 'dark' | 'light' | null;
+    if (saved === 'light' || saved === 'dark') {
+      setTheme(saved);
+      document.documentElement.setAttribute('data-theme', saved);
+      if (saved === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } else {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
+
+  const handleToggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    localStorage.setItem('netcore_theme', nextTheme);
+    document.documentElement.setAttribute('data-theme', nextTheme);
+    if (nextTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
 
   // Custom Dialog Modal states
   const [dialog, setDialog] = useState<{
@@ -144,16 +193,28 @@ export default function Home() {
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Invite Admin states
   const [inviteForm, setInviteForm] = useState({ username: '', password: '' });
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteError, setInviteError] = useState('');
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const u = loginUsername.trim().toLowerCase();
-    const p = loginPassword;
+  const handleLoginSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    setLoginError('');
+    setIsLoggingIn(true);
+
+    const u = (loginUsername || '').trim().toLowerCase();
+    const p = (loginPassword || '').trim();
+
+    if (!u || !p) {
+      setLoginError('Please enter both username and password.');
+      setIsLoggingIn(false);
+      return;
+    }
 
     try {
       const res = await fetch('/api/auth/login', {
@@ -162,23 +223,52 @@ export default function Home() {
         body: JSON.stringify({ username: u, password: p }),
       });
 
-      if (res.ok) {
-        setIsLoggedIn(true);
-        setCurrentUser(u);
-        setLoginError('');
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && (data.success || data.username)) {
+        const activeUser = data.username || u;
         if (typeof window !== 'undefined') {
-          localStorage.setItem('netcore_session', u);
+          localStorage.setItem('netcore_session', activeUser);
         }
+        setCurrentUser(activeUser);
+        setIsLoggedIn(true);
+
+        // Fetch bootstrap data in background
+        fetch('/api/bootstrap')
+          .then(r => r.json())
+          .then(bootData => {
+            if (bootData) {
+              if (bootData.states) setCustomStates(bootData.states);
+              if (bootData.cities) setCustomCities(bootData.cities);
+              if (bootData.ratePlans) setCustomRatePlans(bootData.ratePlans);
+              if (bootData.technicians) setCustomTechnicians(bootData.technicians);
+              if (bootData.vehicles) setCustomVehicles(bootData.vehicles);
+              if (bootData.jobLogs) setCustomJobLogs(bootData.jobLogs);
+              if (bootData.documents) setCustomDocuments(bootData.documents);
+              if (bootData.todos) setCustomTodos(bootData.todos);
+              if (bootData.admins) setAdmins(bootData.admins);
+              if (bootData.candidates) setCustomCandidates(bootData.candidates);
+              if (bootData.tickets) setCustomTickets(bootData.tickets);
+            }
+          })
+          .catch(console.error);
       } else {
-        const errData = await res.json();
-        setLoginError(errData.error || 'Invalid login or password.');
+        setLoginError(data.error || 'Invalid login or password.');
       }
-    } catch (err) {
-      setLoginError('An error occurred during login.');
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setLoginError('An error occurred during login. Please try again.');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {
+      console.error('Logout failed:', e);
+    }
     setIsLoggedIn(false);
     setCurrentUser(null);
     setLoginUsername('');
@@ -416,18 +506,242 @@ export default function Home() {
   const [editRequirements, setEditRequirements] = useState('');
   const [editCompanyPerDiem, setEditCompanyPerDiem] = useState('0.00');
   const [editEmployeePerDiem, setEditEmployeePerDiem] = useState('0.00');
+  const [editOnboardingWaitTime, setEditOnboardingWaitTime] = useState('');
+  const [editMonthlySalary, setEditMonthlySalary] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editVacancyCities, setEditVacancyCities] = useState('');
+  const [editDefaultCut, setEditDefaultCut] = useState('8.00');
+  const [recruitingTab, setRecruitingTab] = useState<'assistant' | 'pipeline'>('assistant');
 
-  // Tech modal tab: 'profile' | 'documents'
-  const [techModalTab, setTechModalTab] = useState<'profile' | 'documents'>('profile');
+  // Candidates states
+  const [customCandidates, setCustomCandidates] = useState<Candidate[]>([]);
+  const [candidateSearchQuery, setCandidateSearchQuery] = useState('');
+  const [candidateStatusFilter, setCandidateStatusFilter] = useState('ALL');
+  const [candidateStateFilter, setCandidateStateFilter] = useState('ALL');
+  const [candidateViewMode, setCandidateViewMode] = useState<'list' | 'kanban'>('list');
+
+  // Candidate edit form states
+  const [isCandidateModalOpen, setIsCandidateModalOpen] = useState(false);
+  const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
+  const [candidateForm, setCandidateForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    stateCode: 'TN',
+    status: 'NEW',
+    notes: '',
+  });
+
+  // Tickets & Inquiries states
+  const [customTickets, setCustomTickets] = useState<any[]>([]);
+  const [ticketSearchQuery, setTicketSearchQuery] = useState('');
+  const [ticketStatusFilter, setTicketStatusFilter] = useState('ALL');
+  const [ticketCategoryFilter, setTicketCategoryFilter] = useState('ALL');
+  const [selectedTicket, setSelectedTicket] = useState<any | null>(null);
+  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [ticketNotes, setTicketNotes] = useState('');
+
+  const unreadTicketsCount = useMemo(() => {
+    return customTickets.filter(t => t.status === 'NEW').length;
+  }, [customTickets]);
+
+  const fetchTickets = async () => {
+    try {
+      const res = await fetch('/api/tickets');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.tickets) {
+          setCustomTickets(data.tickets);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching tickets:', err);
+    }
+  };
+
+  const handleUpdateTicketStatus = async (ticketId: string, newStatus: string) => {
+    try {
+      const res = await fetch('/api/tickets', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: ticketId, status: newStatus }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCustomTickets(prev => prev.map(t => t.id === ticketId ? updated : t));
+        if (selectedTicket && selectedTicket.id === ticketId) {
+          setSelectedTicket(updated);
+        }
+      }
+    } catch (err) {
+      console.error('Error updating ticket status:', err);
+    }
+  };
+
+  const handleSaveTicketNotes = async () => {
+    if (!selectedTicket) return;
+    try {
+      const res = await fetch('/api/tickets', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedTicket.id, notes: ticketNotes }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCustomTickets(prev => prev.map(t => t.id === selectedTicket.id ? updated : t));
+        setSelectedTicket(updated);
+        await customAlert('Notes saved successfully.', 'Success');
+      }
+    } catch (err) {
+      console.error('Error saving ticket notes:', err);
+    }
+  };
+
+  const handleDeleteTicket = async (id: string) => {
+    if (await customConfirm('Are you sure you want to delete this ticket?', 'Delete Ticket')) {
+      try {
+        const res = await fetch(`/api/tickets?id=${id}`, {
+          method: 'DELETE',
+        });
+        if (res.ok) {
+          setCustomTickets(prev => prev.filter(t => t.id !== id));
+          if (selectedTicket && selectedTicket.id === id) {
+            setIsTicketModalOpen(false);
+            setSelectedTicket(null);
+          }
+        }
+      } catch (err) {
+        console.error('Error deleting ticket:', err);
+      }
+    }
+  };
+
+  // Email Preview Modal states
+  const [isEmailPreviewOpen, setIsEmailPreviewOpen] = useState(false);
+  const [emailPreviewData, setEmailPreviewData] = useState<{
+    candidateId: number;
+    templateType: string;
+    to: string;
+    subject: string;
+    bodyHtml: string;
+    bodyText: string;
+    attachments?: string[];
+    stateCode?: string;
+    availableProviders?: string[];
+    selectedProviders?: string[];
+    companyCutPercent?: number | string;
+    perDiemOverride?: number | string;
+  } | null>(null);
+  const [emailPreviewTab, setEmailPreviewTab] = useState<'preview' | 'html'>('preview');
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [isUpdatingRates, setIsUpdatingRates] = useState(false);
+
+  // Send Rates Config Modal states
+  const [isSendRatesConfigOpen, setIsSendRatesConfigOpen] = useState(false);
+  const [sendRatesCandidate, setSendRatesCandidate] = useState<Candidate | null>(null);
+  const [sendRatesStateCode, setSendRatesStateCode] = useState<string>('TN');
+  const [sendRatesCompanyCut, setSendRatesCompanyCut] = useState<string>('8.00');
+  const [sendRatesPerDiem, setSendRatesPerDiem] = useState<string>('0.00');
+  const [sendRatesSelectedProviders, setSendRatesSelectedProviders] = useState<string[]>([]);
+
+  // Candidate Documents Viewer Modal states
+  const [isCandidateDocsOpen, setIsCandidateDocsOpen] = useState(false);
+  const [selectedCandForDocs, setSelectedCandForDocs] = useState<Candidate | null>(null);
+  const [candidateDocsList, setCandidateDocsList] = useState<any[]>([]);
+  const [candidateDocsLoading, setCandidateDocsLoading] = useState(false);
+  const [candidateUploadLink, setCandidateUploadLink] = useState<string | null>(null);
+
+  // HR Module Google Material Theme ('dark' | 'light')
+  const [hrTheme, setHrTheme] = useState<'dark' | 'light'>('dark');
+
+  // Tech modal tab: 'profile' | 'documents' | 'payments' | 'mobile_jobs'
+  const [techModalTab, setTechModalTab] = useState<'profile' | 'documents' | 'payments' | 'mobile_jobs'>('profile');
+  const [techUploads, setTechUploads] = useState<Array<{ id: string; jobNumber: string; imageUrl?: string | null; rawText?: string | null; createdAt: string; payoutAmount?: number; sourceLabel?: string }>>([]);
+  const [techUploadStats, setTechUploadStats] = useState({ totalCount: 0, todayCount: 0, monthCount: 0, avgPerDay: 0 });
+  const [loadingUploads, setLoadingUploads] = useState(false);
+  const [previewScreenshotUrl, setPreviewScreenshotUrl] = useState<string | null>(null);
+  const [mobileJobsDateFilter, setMobileJobsDateFilter] = useState<string>('ALL');
+  const [customSelectedDate, setCustomSelectedDate] = useState<string>('');
 
   // Weekly spreadsheet importer states
   const [importRawText, setImportRawText] = useState('');
   const [parsedJobs, setParsedJobs] = useState<any[]>([]);
-  const [perDiem, setPerDiem] = useState('0.00');
-  const [carDeduction, setCarDeduction] = useState('0.00');
-  const [hotelDeduction, setHotelDeduction] = useState('0.00');
-  const [jobsTab, setJobsTab] = useState<'importer' | 'ledger'>('importer');
   const [importerTechFilter, setImporterTechFilter] = useState<string>('ALL');
+  
+  // Track adjustments per technician
+  const [techAdjustments, setTechAdjustments] = useState<Record<number, { perDiem: string, companyPerDiem: string, car: string, companyToolsCost: string, hotel: string }>>({});
+  
+  const [perDiem, setPerDiem] = useState('0.00');
+  const [companyPerDiem, setCompanyPerDiem] = useState('0.00');
+  const [carDeduction, setCarDeduction] = useState('0.00');
+  const [companyToolsCost, setCompanyToolsCost] = useState('0.00');
+  const [hotelDeduction, setHotelDeduction] = useState('0.00');
+  
+  const prevTechFilterRef = React.useRef('ALL');
+
+  const calculateTechnicianPerDiem = (techId: number, techJobs: any[]) => {
+    const tech = customTechnicians.find(technician => technician.id === techId);
+    if (!tech) return 0;
+
+    const stateOfTech = customStates.find(state => state.id === tech.stateId);
+    const dailyRate = tech.perDiemOverride != null
+      ? Number(tech.perDiemOverride)
+      : Number(stateOfTech?.employeePerDiem) || 0;
+    const uniqueDays = new Set(techJobs.map(job => job.date)).size;
+
+    return dailyRate * uniqueDays;
+  };
+
+  const calculateCompanyPerDiem = (techId: number, techJobs: any[]) => {
+    const tech = customTechnicians.find(technician => technician.id === techId);
+    if (!tech) return 0;
+
+    const stateOfTech = customStates.find(state => state.id === tech.stateId);
+    const dailyRate = Number(stateOfTech?.companyPerDiem) || 0;
+    const uniqueDays = new Set(techJobs.map(job => job.date)).size;
+
+    return dailyRate * uniqueDays;
+  };
+
+  useEffect(() => {
+    const prevFilter = prevTechFilterRef.current;
+    
+    if (prevFilter !== 'ALL' && prevFilter !== 'UNMATCHED') {
+      const prevTechId = parseInt(prevFilter);
+      if (!isNaN(prevTechId)) {
+        setTechAdjustments(prev => ({
+          ...prev,
+          [prevTechId]: { perDiem, companyPerDiem, car: carDeduction, companyToolsCost, hotel: hotelDeduction }
+        }));
+      }
+    }
+
+    if (importerTechFilter !== 'ALL' && importerTechFilter !== 'UNMATCHED') {
+      const nextTechId = parseInt(importerTechFilter);
+      if (!isNaN(nextTechId)) {
+        const adj = techAdjustments[nextTechId];
+        if (adj) {
+          setPerDiem(adj.perDiem);
+          setCompanyPerDiem(adj.companyPerDiem || '0.00');
+          setCarDeduction(adj.car);
+          setCompanyToolsCost(adj.companyToolsCost || '0.00');
+          setHotelDeduction(adj.hotel);
+        } else {
+          const techJobs = parsedJobs.filter(j => j.matchedTechId === nextTechId);
+          const tech = customTechnicians.find(t => t.id === nextTechId);
+          
+          setPerDiem(calculateTechnicianPerDiem(nextTechId, techJobs).toFixed(2));
+          setCompanyPerDiem(calculateCompanyPerDiem(nextTechId, techJobs).toFixed(2));
+          setCarDeduction((Number(tech?.carToolsDeduction) || 0).toFixed(2));
+          setCompanyToolsCost((Number(tech?.companyToolsCost) || 0).toFixed(2));
+          setHotelDeduction('0.00');
+        }
+      }
+    }
+    
+    prevTechFilterRef.current = importerTechFilter;
+  }, [importerTechFilter, parsedJobs]);
 
   const filteredParsedJobs = useMemo(() => {
     if (importerTechFilter === 'ALL') return parsedJobs;
@@ -444,16 +758,23 @@ export default function Home() {
   // Technician Edit/Add Modal states
   const [isTechModalOpen, setIsTechModalOpen] = useState(false);
   const [editingTech, setEditingTech] = useState<Technician | null>(null);
+  const [previewStatement, setPreviewStatement] = useState<TechDocument | null>(null);
   const [techForm, setTechForm] = useState({
     name: '',
     phone: '',
     email: '',
+    username: '',
+    password: '',
     status: 'ACTIVE' as TechStatus,
     workType: 'BURY' as WorkType,
     stateCode: 'TN',
     vehicleId: '',
     payoutType: 'PERCENTAGE' as PayoutType,
     payoutValue: '8',
+    perDiemOverride: '',
+    carToolsDeduction: '0.00',
+    companyToolsCost: '0.00',
+    defaultProvider: '',
     notes: ''
   });
 
@@ -542,20 +863,56 @@ export default function Home() {
       name: '',
       phone: '',
       email: '',
+      username: '',
+      password: '',
       status: 'ACTIVE',
       workType: 'BURY',
       stateCode: selectedStateCode || 'TN',
       vehicleId: '',
       payoutType: 'PERCENTAGE',
       payoutValue: '8',
+      perDiemOverride: '',
+      carToolsDeduction: '0.00',
+      companyToolsCost: '0.00',
+      defaultProvider: '',
       notes: ''
     });
     setTechModalTab('profile');
     setIsTechModalOpen(true);
   };
 
+  const fetchTechUploads = async (techId: number) => {
+    setLoadingUploads(true);
+    setTechUploads([]);
+    setTechUploadStats({ totalCount: 0, todayCount: 0, monthCount: 0, avgPerDay: 0 });
+    try {
+      const res = await fetch(`/api/v1/uploads?technicianId=${techId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTechUploads(data.uploads || []);
+        setTechUploadStats({
+          totalCount: data.totalCount || 0,
+          todayCount: data.todayCount || 0,
+          monthCount: data.monthCount || 0,
+          avgPerDay: data.avgPerDay || 0,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch tech uploads:', err);
+    } finally {
+      setLoadingUploads(false);
+    }
+  };
+
+  useEffect(() => {
+    if (editingTech?.id && isTechModalOpen) {
+      fetchTechUploads(editingTech.id);
+    }
+  }, [editingTech?.id, isTechModalOpen]);
+
   const handleEditTechClick = (tech: Technician) => {
     setEditingTech(tech);
+    fetchTechUploads(tech.id);
     const techVehicle = customVehicles.find(v => v.technicianId === tech.id);
     const vehicleId = techVehicle ? techVehicle.id.toString() : '';
 
@@ -563,12 +920,18 @@ export default function Home() {
       name: tech.name,
       phone: tech.phone,
       email: tech.email,
+      username: tech.username ?? '',
+      password: tech.password ?? '',
       status: tech.status,
       workType: tech.workType,
       stateCode: tech.stateCode,
       vehicleId,
       payoutType: tech.payoutType ?? 'PERCENTAGE',
       payoutValue: (tech.payoutValue ?? 8).toString(),
+      perDiemOverride: tech.perDiemOverride != null ? tech.perDiemOverride.toString() : '',
+      carToolsDeduction: (tech.carToolsDeduction ?? 0).toString(),
+      companyToolsCost: (tech.companyToolsCost ?? 0).toString(),
+      defaultProvider: tech.defaultProvider ?? '',
       notes: tech.notes ?? ''
     });
     setTechModalTab('profile');
@@ -617,7 +980,13 @@ export default function Home() {
           method: 'DELETE',
         });
         if (res.ok) {
+          const result = await res.json();
           setCustomDocuments(prev => prev.filter(d => d.id !== docId));
+          if (result.batchId) {
+            setCustomJobLogs(prev => prev.filter(job => !(
+              job.batchId === result.batchId && job.technicianId === result.technicianId
+            )));
+          }
         }
       } catch (err) {
         console.error('Error deleting document:', err);
@@ -720,27 +1089,157 @@ export default function Home() {
   // Weekly spreadsheet parsing and matching helpers
   const matchTechnician = (techString: string) => {
     if (!techString) return null;
-    const lowerStr = techString.toLowerCase();
     
-    // Match by ID digits (e.g. "6375 Dzmitry" -> 6375)
-    const digitsMatch = techString.match(/\d+/);
+    // Clean string by removing parentheses, brackets, numbers, and noise
+    const cleanTokens = techString
+      .replace(/[\(\)\[\]\:\,\.\_]/g, ' ')
+      .replace(/\b\d{3,}\b/g, '') // remove 3+ digit IDs like 4171, 0967
+      .replace(/[\d]/g, '')
+      .toLowerCase()
+      .trim()
+      .split(/\s+/)
+      .filter(t => t.length >= 2);
+
+    if (cleanTokens.length > 0) {
+      // 1. Try exact or multi-token match against technicians
+      for (const t of customTechnicians) {
+        const tNameLower = t.name.toLowerCase();
+        const tTokens = tNameLower.split(/\s+/);
+        
+        // Check if all tokens of tech's name appear in techString or cleanTokens
+        const matchesAllTechTokens = tTokens.every(token => 
+          cleanTokens.some(ct => ct.includes(token) || token.includes(ct))
+        );
+        
+        if (matchesAllTechTokens) {
+          return t.id;
+        }
+
+        // Check if any significant token matches if tech has multi-word name
+        const matchesAnyTechToken = tTokens.some(token => token.length > 3 && cleanTokens.includes(token));
+        if (matchesAnyTechToken) {
+          return t.id;
+        }
+      }
+    }
+
+    // 2. Fallback: Match by DB id number if technician ID is explicitly passed
+    const digitsMatch = techString.match(/\b\d+\b/);
     if (digitsMatch) {
       const idNum = parseInt(digitsMatch[0]);
       const foundById = customTechnicians.find(t => t.id === idNum);
       if (foundById) return foundById.id;
     }
 
-    // Match by name substring (e.g., "Dzmitry" contains "Dzmitry" or vice-versa)
-    const cleanName = techString.replace(/[\d\-\_\#\.\,\s]+/g, ' ').trim().toLowerCase();
-    if (cleanName.length > 2) {
-      const foundByName = customTechnicians.find(t => {
-        const tName = t.name.toLowerCase();
-        return tName.includes(cleanName) || cleanName.includes(tName);
-      });
-      if (foundByName) return foundByName.id;
-    }
-    
     return null;
+  };
+
+  const calculateJobPayout = (
+    grossAmount: number,
+    quantity: number,
+    matchedTechId: number | null,
+    jobStateCode: string,
+    jobCode?: string,
+    jobProvider?: string
+  ) => {
+    const gross = grossAmount * quantity;
+    let cutPct = 8.00;
+    let profit = 0;
+    let payout = 0;
+    let isCustom = false;
+
+    const stateCode = matchedTechId
+      ? (customTechnicians.find(t => t.id === matchedTechId)?.stateCode || jobStateCode)
+      : jobStateCode;
+    const stateObj = customStates.find(s => s.code === stateCode);
+    const stateCut = stateObj ? Number(stateObj.defaultCut ?? 8.00) : 8.00;
+
+    if (matchedTechId) {
+      const tech = customTechnicians.find(t => t.id === matchedTechId);
+      if (tech) {
+        // Step 1: Check Employee Profile Payout % / Value
+        const hasCustomPayout = Number(tech.payoutValue) > 0;
+        if (hasCustomPayout) {
+          isCustom = true;
+          cutPct = Number(tech.payoutValue);
+          if (tech.payoutType === 'PERCENTAGE') {
+            profit = gross * (cutPct / 100);
+          } else {
+            profit = cutPct * quantity;
+          }
+          payout = Math.max(0, gross - profit);
+          return { companyCutPct: cutPct, companyProfit: profit, techPayout: payout, isCustom };
+        }
+
+        // Step 2: Check Assigned Provider Rate Plans
+        const targetProvider = tech.defaultProvider || jobProvider;
+        if (targetProvider && jobCode) {
+          const matchingPlan = customRatePlans.find(rp =>
+            rp.stateCode === stateCode &&
+            rp.provider.toLowerCase() === targetProvider.toLowerCase() &&
+            rp.code.toLowerCase() === jobCode.toLowerCase()
+          );
+
+          if (matchingPlan) {
+            isCustom = true;
+            const companyRate = Number(matchingPlan.grossPrice) || 0;
+            const employeeRate = Number(matchingPlan.employeePrice) || 0;
+            
+            payout = employeeRate * quantity;
+            profit = (companyRate - employeeRate) * quantity;
+            cutPct = companyRate > 0 ? Math.max(0, ((companyRate - employeeRate) / companyRate) * 100) : stateCut;
+            return { companyCutPct: cutPct, companyProfit: profit, techPayout: payout, isCustom };
+          }
+        }
+
+        // Step 3: Fallback: Check Average Rate for Job Code in State across providers
+        if (jobCode) {
+          const stateJobPlans = customRatePlans.filter(rp =>
+            rp.stateCode === stateCode &&
+            rp.code.toLowerCase() === jobCode.toLowerCase()
+          );
+
+          if (stateJobPlans.length > 0) {
+            isCustom = true;
+            const avgCompRate = stateJobPlans.reduce((acc, p) => acc + Number(p.grossPrice), 0) / stateJobPlans.length;
+            const avgEmpRate = stateJobPlans.reduce((acc, p) => acc + Number(p.employeePrice), 0) / stateJobPlans.length;
+
+            payout = avgEmpRate * quantity;
+            profit = (avgCompRate - avgEmpRate) * quantity;
+            cutPct = avgCompRate > 0 ? Math.max(0, ((avgCompRate - avgEmpRate) / avgCompRate) * 100) : stateCut;
+            return { companyCutPct: cutPct, companyProfit: profit, techPayout: payout, isCustom };
+          }
+        }
+
+        // Fallback to State Cut
+        cutPct = stateCut;
+        profit = gross * (stateCut / 100);
+        payout = Math.max(0, gross - profit);
+        return { companyCutPct: cutPct, companyProfit: profit, techPayout: payout, isCustom };
+      }
+    }
+
+    // Unmatched tech fallback
+    cutPct = stateCut;
+    profit = gross * (cutPct / 100);
+    payout = Math.max(0, gross - profit);
+    return { companyCutPct: cutPct, companyProfit: profit, techPayout: payout, isCustom };
+  };
+
+  const decodeCsvContent = (dataUrl: string): string => {
+    if (!dataUrl) return '';
+    try {
+      if (dataUrl.includes(';base64,')) {
+        const parts = dataUrl.split(';base64,');
+        if (parts.length > 1) {
+          return decodeURIComponent(escape(atob(parts[1])));
+        }
+      }
+      return dataUrl;
+    } catch (e) {
+      console.error('Error decoding CSV:', e);
+      return '';
+    }
   };
 
   const handleParseSheet = async () => {
@@ -767,8 +1266,29 @@ export default function Home() {
       const parsed = parseFloat(clean);
       return isNaN(parsed) ? 0 : parsed;
     };
+
+    const formatParsedDate = (dStr: string): string => {
+      if (!dStr) return new Date().toISOString().split('T')[0];
+      const trimmed = dStr.trim();
+      const parts = trimmed.split(/[\/\.\-]/);
+      if (parts.length === 3) {
+        let [p1, p2, p3] = parts;
+        if (p3.length === 4) {
+          let num1 = parseInt(p1);
+          let year = p3;
+          if (num1 > 12) {
+            return `${year}-${p2.padStart(2, '0')}-${p1.padStart(2, '0')}`;
+          } else {
+            return `${year}-${p1.padStart(2, '0')}-${p2.padStart(2, '0')}`;
+          }
+        } else if (p1.length === 4) {
+          return `${p1}-${p2.padStart(2, '0')}-${p3.padStart(2, '0')}`;
+        }
+      }
+      return trimmed;
+    };
     
-    const lines = importRawText.split(/\r?\n/);
+    const lines = importRawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
     if (lines.length === 0) return;
     
     // Delimiter detection (TSV vs CSV)
@@ -788,53 +1308,79 @@ export default function Home() {
       if (!val) return '';
       return val.replace(/^["']|["']$/g, '').trim();
     };
-    
-    // Default indices based on the user's check layout
-    let dateIdx = 0;
-    let techIdx = 1;
-    let clientIdx = 2;
-    let regionIdx = 3;
-    let jobIdx = 4;
-    let cityIdx = 7;
-    let stateIdx = 8;
-    let zipIdx = 9;
-    let jobCodeIdx = 10;
-    let descIdx = 11;
-    let qtyIdx = 12;
-    let amountIdx = 13;
-    
-    // Attempt to parse headers
-    for (let rowIdx = 0; rowIdx < Math.min(2, lines.length); rowIdx++) {
-      const rowCells = lines[rowIdx].split(delimiter).map(cleanCell);
-      const isHeaderRow = rowCells.some(cell => 
-        /date|tech|client|provider|job|city|state|zip|code|description|quantity|столбец/i.test(cell)
-      );
+
+    // Analyze first line for header row
+    const firstRowCells = lines[0].split(delimiter).map(cleanCell);
+    const isHeader = firstRowCells.some(cell => 
+      /date|tech|employee|client|provider|job|city|state|zip|code|description|quantity|total|amount|столбец/i.test(cell)
+    );
+
+    let dateIdx = -1;
+    let techIdx = -1;
+    let clientIdx = -1;
+    let regionIdx = -1;
+    let jobIdx = -1;
+    let cityIdx = -1;
+    let stateIdx = -1;
+    let zipIdx = -1;
+    let jobCodeIdx = -1;
+    let descIdx = -1;
+    let qtyIdx = -1;
+    let amountIdx = -1;
+
+    if (isHeader) {
+      hasHeaderRow = true;
+      headers = firstRowCells.map(h => h.toLowerCase());
       
-      if (isHeaderRow) {
-        headers = rowCells.map(h => h.toLowerCase());
-        hasHeaderRow = true;
-        
-        const mapHeader = (regex: RegExp, defaultIdx: number, excludeRegex?: RegExp) => {
-          const idx = headers.findIndex(h => regex.test(h) && !(excludeRegex && excludeRegex.test(h)));
-          return idx !== -1 ? idx : defaultIdx;
-        };
-        
-        const hasTechHeader = headers.some(h => /tech|employee|contractor/i.test(h));
-        
-        dateIdx = mapHeader(/date/i, dateIdx);
-        techIdx = hasTechHeader ? mapHeader(/tech|employee|contractor/i, techIdx) : -1;
-        clientIdx = mapHeader(/client|provider|vendor/i, clientIdx);
-        regionIdx = mapHeader(/region/i, regionIdx);
-        jobIdx = mapHeader(/job|work\s*order|order/i, jobIdx);
-        cityIdx = mapHeader(/city/i, cityIdx);
-        stateIdx = mapHeader(/state/i, stateIdx);
-        zipIdx = mapHeader(/zip|postal/i, zipIdx);
-        jobCodeIdx = mapHeader(/job\s*code|code/i, jobCodeIdx, /zip/i);
-        descIdx = mapHeader(/description|desc/i, descIdx);
-        qtyIdx = mapHeader(/quantity|qty|units/i, qtyIdx);
-        amountIdx = mapHeader(/столбец|price|gross|amount|rate/i, amountIdx);
-        break;
-      }
+      const findHeader = (regex: RegExp, excludeRegex?: RegExp) => {
+        return headers.findIndex(h => regex.test(h) && !(excludeRegex && excludeRegex.test(h)));
+      };
+
+      dateIdx = findHeader(/date|дата/i);
+      techIdx = findHeader(/tech|employee|contractor|техник|сотрудник/i);
+      clientIdx = findHeader(/client|provider|vendor|провайдер/i);
+      regionIdx = findHeader(/region|регион/i);
+      jobIdx = findHeader(/job\s*#|job\s*id|work\s*order|order|заказ/i, /job\s*code/i);
+      if (jobIdx === -1) jobIdx = findHeader(/job/i, /job\s*code/i);
+      cityIdx = findHeader(/city|город/i);
+      stateIdx = findHeader(/state|штат/i);
+      zipIdx = findHeader(/zip|postal/i);
+      jobCodeIdx = findHeader(/job\s*code|^code$|код/i, /zip/i);
+      descIdx = findHeader(/description|desc|описание/i);
+      qtyIdx = findHeader(/quantity|qty|units|кол-во/i);
+      amountIdx = findHeader(/total|amount|price|gross|sum|сумма|рейт/i);
+    }
+
+    // Determine row format if header row was absent or incomplete
+    const sampleDataRow = (hasHeaderRow && lines.length > 1 ? lines[1] : lines[0]).split(delimiter).map(cleanCell);
+    const colCount = sampleDataRow.length;
+
+    if (colCount <= 6 && (amountIdx === -1 || jobCodeIdx === -1)) {
+      // 4-5 column compact format (e.g. Date | Employee | Job # | Code | Amount)
+      if (dateIdx === -1) dateIdx = 0;
+      if (techIdx === -1) techIdx = 1;
+      if (jobIdx === -1) jobIdx = colCount >= 5 ? 2 : -1;
+      if (jobCodeIdx === -1) jobCodeIdx = colCount >= 5 ? 3 : 2;
+      if (amountIdx === -1) amountIdx = colCount >= 5 ? 4 : 3;
+    } else if (colCount >= 10 && (amountIdx === -1 || jobCodeIdx === -1)) {
+      // 14-column full format (Date, Tech, Client, Region, Job, Account, Address, City, State, Zip, Job Code, Description, Quantity, Total)
+      if (dateIdx === -1) dateIdx = 0;
+      if (techIdx === -1) techIdx = 1;
+      if (clientIdx === -1) clientIdx = 2;
+      if (regionIdx === -1) regionIdx = 3;
+      if (jobIdx === -1) jobIdx = 4;
+      if (cityIdx === -1) cityIdx = 7;
+      if (stateIdx === -1) stateIdx = 8;
+      if (zipIdx === -1) zipIdx = 9;
+      if (jobCodeIdx === -1) jobCodeIdx = 10;
+      if (descIdx === -1) descIdx = 11;
+      if (qtyIdx === -1) qtyIdx = 12;
+      if (amountIdx === -1) amountIdx = 13;
+    } else {
+      if (dateIdx === -1) dateIdx = 0;
+      if (techIdx === -1) techIdx = 1;
+      if (jobCodeIdx === -1) jobCodeIdx = Math.min(2, colCount - 1);
+      if (amountIdx === -1) amountIdx = colCount - 1;
     }
     
     const startRow = hasHeaderRow ? 1 : 0;
@@ -846,62 +1392,66 @@ export default function Home() {
       const cells = lines[i].split(delimiter).map(cleanCell);
       if (cells.length < 2) continue;
       
-      const dateVal = cells[dateIdx] || '';
+      const dateRaw = dateIdx !== -1 ? (cells[dateIdx] || '') : '';
       const techName = techIdx !== -1 ? (cells[techIdx] || '') : '';
-      const descVal = cells[descIdx] || '';
+      const descVal = descIdx !== -1 ? (cells[descIdx] || '') : '';
       const descClean = descVal.trim().toLowerCase();
       
-      // Skip empty rows, summary rows, or rows without date and tech
+      // Skip empty rows, summary rows, or rows without date/tech/code
       if (
-        (!dateVal.trim() && !techName.trim()) ||
+        (!dateRaw.trim() && !techName.trim()) ||
         descClean === 'per diem' ||
         descClean === 'car' ||
         descClean === 'hotel' ||
         descClean === 'total' ||
         descClean === 'subtotal' ||
+        techName.toLowerCase() === 'total' ||
+        dateRaw.toLowerCase() === 'total' ||
         cells.every(c => !c.trim())
       ) {
         continue;
       }
       
-      // Regular Job row
-      const finalDateVal = dateVal || new Date().toISOString().split('T')[0];
-      const clientVal = cells[clientIdx] || 'Xfinity';
+      const finalDateVal = formatParsedDate(dateRaw);
+      const clientVal = clientIdx !== -1 ? (cells[clientIdx] || 'Spectrum') : 'Spectrum';
       const mappedProvider = clientVal.toLowerCase().includes('charter') ? 'Spectrum' : clientVal;
       
-      const regionVal = cells[regionIdx] || '';
-      const jobRef = cells[jobIdx] || `WO-${Math.floor(Math.random() * 900000 + 100000)}`;
-      const cityVal = cells[cityIdx] || '';
-      const stateVal = cells[stateIdx] || '';
-      const zipVal = cells[zipIdx] || '';
-      const jobCodeVal = cells[jobCodeIdx] || 'RDP';
+      const regionVal = regionIdx !== -1 ? (cells[regionIdx] || '') : '';
+      const jobRef = jobIdx !== -1 ? (cells[jobIdx] || `WO-${Math.floor(Math.random() * 900000 + 100000)}`) : `WO-${Math.floor(Math.random() * 900000 + 100000)}`;
+      const cityVal = cityIdx !== -1 ? (cells[cityIdx] || '') : '';
+      let stateVal = stateIdx !== -1 ? (cells[stateIdx] || '') : '';
+      const zipVal = zipIdx !== -1 ? (cells[zipIdx] || '') : '';
+      const jobCodeVal = jobCodeIdx !== -1 ? (cells[jobCodeIdx] || 'RDP') : 'RDP';
       
-      const qtyStr = cells[qtyIdx] ? cells[qtyIdx].replace(/[^\d]/g, '') : '';
+      const qtyStr = qtyIdx !== -1 && cells[qtyIdx] ? cells[qtyIdx].replace(/[^\d]/g, '') : '1';
       const qtyVal = parseInt(qtyStr) || 1;
       
-      const priceRaw = cells[amountIdx] || '';
-      const priceVal = parseLocaleFloat(priceRaw);
+      const priceRaw = amountIdx !== -1 ? (cells[amountIdx] || '') : '';
+      let priceVal = parseLocaleFloat(priceRaw);
       
       const techId = matchTechnician(techName);
-      let cutPct = 8;
-      let profit = 0;
-      let payout = 0;
       
-      if (techId !== null) {
-        const tech = customTechnicians.find(t => t.id === techId);
-        if (tech) {
-          cutPct = tech.payoutValue;
-          if (tech.payoutType === 'PERCENTAGE') {
-            profit = (priceVal * qtyVal) * (tech.payoutValue / 100);
-          } else {
-            profit = tech.payoutValue * qtyVal;
+      // If state is missing from row, resolve state from matched technician
+      if (!stateVal && techId) {
+        const matchedTech = customTechnicians.find(t => t.id === techId);
+        if (matchedTech) {
+          const techState = customStates.find(s => s.id === matchedTech.stateId);
+          if (techState) {
+            stateVal = techState.code;
           }
-          payout = Math.max(0, (priceVal * qtyVal) - profit);
         }
-      } else {
-        profit = (priceVal * qtyVal) * 0.08;
-        payout = (priceVal * qtyVal) - profit;
       }
+
+      // If price/amount is missing from row, lookup RatePlan by code
+      if (priceVal === 0 && jobCodeVal) {
+        const rp = customRatePlans.find(r => r.code.toUpperCase() === jobCodeVal.trim().toUpperCase());
+        if (rp) {
+          priceVal = rp.grossPrice;
+        }
+      }
+
+      const stateCodeVal = stateVal || 'TN';
+      const calc = calculateJobPayout(priceVal, qtyVal, techId, stateCodeVal, jobCodeVal, mappedProvider);
       
       tempParsedJobs.push({
         tempId: Math.random().toString(36).substring(2, 9),
@@ -912,21 +1462,22 @@ export default function Home() {
         regionCode: regionVal,
         jobRef,
         city: cityVal,
-        stateCode: stateVal || 'TN',
+        stateCode: stateCodeVal,
         zipCode: zipVal,
         jobCode: jobCodeVal,
         description: descVal || 'Residential Installation',
         quantity: qtyVal,
         grossAmount: priceVal,
-        companyCutPct: cutPct,
-        companyProfit: Math.round(profit * 100) / 100,
-        techPayout: Math.round(payout * 100) / 100,
-        isValid: techId !== null
+        companyCutPct: calc.companyCutPct,
+        companyProfit: calc.companyProfit,
+        techPayout: calc.techPayout,
+        isValid: techId !== null,
+        rawCells: cells
       });
     }
     
     if (tempParsedJobs.length === 0) {
-      alert('Could not parse any valid jobs from the pasted text.');
+      await customAlert('Could not parse any valid jobs from the pasted text.', 'Parsing Error');
       return;
     }
     
@@ -934,25 +1485,15 @@ export default function Home() {
   };
 
   const handleUpdateRowTech = (rowTempId: string, techId: number) => {
-    const tech = customTechnicians.find(t => t.id === techId);
-    if (!tech) return;
-    
     setParsedJobs(prev => prev.map(job => {
       if (job.tempId === rowTempId) {
-        const gross = job.grossAmount * job.quantity;
-        let profit = 0;
-        if (tech.payoutType === 'PERCENTAGE') {
-          profit = gross * (tech.payoutValue / 100);
-        } else {
-          profit = tech.payoutValue * job.quantity;
-        }
-        const payout = Math.max(0, gross - profit);
+        const calc = calculateJobPayout(job.grossAmount, job.quantity, techId, job.stateCode, job.jobCode, job.provider);
         return {
           ...job,
           matchedTechId: techId,
-          companyCutPct: tech.payoutValue,
-          companyProfit: Math.round(profit * 100) / 100,
-          techPayout: Math.round(payout * 100) / 100,
+          companyCutPct: calc.companyCutPct,
+          companyProfit: calc.companyProfit,
+          techPayout: calc.techPayout,
           isValid: true
         };
       }
@@ -964,24 +1505,10 @@ export default function Home() {
     setParsedJobs(prev => prev.map(job => {
       if (job.tempId === rowTempId) {
         const updated = { ...job, [field]: value };
-        const gross = updated.grossAmount * updated.quantity;
-        let profit = 0;
-        
-        if (updated.matchedTechId) {
-          const tech = customTechnicians.find(t => t.id === updated.matchedTechId);
-          if (tech) {
-            if (tech.payoutType === 'PERCENTAGE') {
-              profit = gross * (tech.payoutValue / 100);
-            } else {
-              profit = tech.payoutValue * updated.quantity;
-            }
-          }
-        } else {
-          profit = gross * 0.08;
-        }
-        
-        updated.companyProfit = Math.round(profit * 100) / 100;
-        updated.techPayout = Math.max(0, Math.round((gross - profit) * 100) / 100);
+        const calc = calculateJobPayout(updated.grossAmount, updated.quantity, updated.matchedTechId, updated.stateCode, updated.jobCode, updated.provider);
+        updated.companyCutPct = calc.companyCutPct;
+        updated.companyProfit = calc.companyProfit;
+        updated.techPayout = calc.techPayout;
         return updated;
       }
       return job;
@@ -992,8 +1519,10 @@ export default function Home() {
     if (!newStateCode) return;
     setParsedJobs(prev => prev.map(job => {
       const updated = { ...job, stateCode: newStateCode };
-      // Also update profit and payout in case technician rates vary or anything,
-      // although changing state code only overrides the job's stateCode property.
+      const calc = calculateJobPayout(updated.grossAmount, updated.quantity, updated.matchedTechId, updated.stateCode, updated.jobCode, updated.provider);
+      updated.companyCutPct = calc.companyCutPct;
+      updated.companyProfit = calc.companyProfit;
+      updated.techPayout = calc.techPayout;
       return updated;
     }));
   };
@@ -1001,65 +1530,65 @@ export default function Home() {
   const handleBulkSetEmployee = (techIdStr: string) => {
     if (!techIdStr) return;
     const techId = parseInt(techIdStr);
-    const tech = customTechnicians.find(t => t.id === techId);
-    if (!tech) return;
-
     setParsedJobs(prev => prev.map(job => {
-      const gross = job.grossAmount * job.quantity;
-      let profit = 0;
-      if (tech.payoutType === 'PERCENTAGE') {
-        profit = gross * (tech.payoutValue / 100);
-      } else {
-        profit = tech.payoutValue * job.quantity;
-      }
-      const payout = Math.max(0, gross - profit);
+      const calc = calculateJobPayout(job.grossAmount, job.quantity, techId, job.stateCode, job.jobCode, job.provider);
       return {
         ...job,
         matchedTechId: techId,
-        companyCutPct: tech.payoutValue,
-        companyProfit: Math.round(profit * 100) / 100,
-        techPayout: Math.round(payout * 100) / 100,
+        companyCutPct: calc.companyCutPct,
+        companyProfit: calc.companyProfit,
+        techPayout: calc.techPayout,
         isValid: true
       };
     }));
   };
 
-  const handleQuickCreateTech = (rawName: string, stateCode: string) => {
+  const handleQuickCreateTech = async (rawName: string, stateCode: string) => {
     const cleanName = rawName.replace(/[\d\-\_\#\.\,\s]+/g, ' ').trim();
-    const newId = Math.max(0, ...customTechnicians.map(t => t.id)) + 1;
-    const newTech: Technician = {
-      id: newId,
-      name: cleanName || `Tech #${newId}`,
-      phone: '+1 (555) 555-0100',
-      email: `${(cleanName || 'tech').toLowerCase().replace(/\s+/g, '')}@netcoretelecom.com`,
-      status: 'ACTIVE',
-      workType: 'BURY',
-      stateId: 1, // TN
-      stateCode: stateCode || 'TN',
-      payoutType: 'PERCENTAGE',
-      payoutValue: 8
-    };
+    const finalName = cleanName || `Tech`;
     
-    const updatedTechs = [...customTechnicians, newTech];
-    setCustomTechnicians(updatedTechs);
-    localStorage.setItem('netcore_technicians', JSON.stringify(updatedTechs));
-    
-    setParsedJobs(prev => prev.map(job => {
-      if (job.techNameRaw === rawName) {
-        const gross = job.grossAmount * job.quantity;
-        const profit = gross * 0.08;
-        const payout = gross - profit;
-        return {
-          ...job,
-          matchedTechId: newId,
-          companyCutPct: 8,
-          companyProfit: Math.round(profit * 100) / 100,
-          techPayout: Math.round(payout * 100) / 100,
-          isValid: true
-        };
+    try {
+      const res = await fetch('/api/techs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: finalName,
+          phone: '+1 (555) 555-0100',
+          email: `${finalName.toLowerCase().replace(/\\s+/g, '')}@netcore.com`,
+          status: 'ACTIVE',
+          workType: 'BURY',
+          stateCode: stateCode || 'TN',
+          payoutType: 'PERCENTAGE',
+          payoutValue: '8'
+        }),
+      });
+
+      if (res.ok) {
+        const newTech = await res.json();
+        
+        setCustomTechnicians(prev => [...prev, newTech]);
+        
+        setParsedJobs(prev => prev.map(job => {
+          if (job.techNameRaw === rawName) {
+            const calc = calculateJobPayout(job.grossAmount, job.quantity, newTech.id, job.stateCode);
+            return {
+              ...job,
+              matchedTechId: newTech.id,
+              companyCutPct: calc.companyCutPct,
+              companyProfit: calc.companyProfit,
+              techPayout: calc.techPayout,
+              isValid: true
+            };
+          }
+          return job;
+        }));
+      } else {
+        const errData = await res.json();
+        await customAlert(errData.error || 'Failed to quick-create technician.', 'Error');
       }
-      return job;
-    }));
+    } catch (err) {
+      console.error('Error quick-creating technician:', err);
+    }
   };
 
   const handleExportProcessedCSV = async (techId: number | null) => {
@@ -1118,11 +1647,10 @@ export default function Home() {
       const pd = parseFloat(perDiem) || 0;
       const car = parseFloat(carDeduction) || 0;
       const hotel = parseFloat(hotelDeduction) || 0;
-      const netPayout = totalTechPayout + pd + car + hotel;
+      const netPayout = totalTechPayout + pd - car - hotel;
       
       csvContent += `,,,,,,,,,,Per Diem,,${pd.toFixed(2)}\n`;
-      csvContent += `,,,,,,,,,,Car Deduction,,${car.toFixed(2)}\n`;
-      csvContent += `,,,,,,,,,,Hotel Deduction,,${hotel.toFixed(2)}\n`;
+      csvContent += `,,,,,,,,,,Tools and Car,,-${(car + hotel).toFixed(2)}\n`;
       csvContent += `,,,,,,,,,,Net Technician Payout,,${netPayout.toFixed(2)}\n`;
     }
     
@@ -1130,40 +1658,173 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `NetCore_Payout_${techName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `NETCORE_Payout_${techName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
+
+
   const handleCommitParsedJobs = async () => {
     const hasUnmatched = parsedJobs.some(j => !j.matchedTechId);
     if (hasUnmatched) {
-      if (!await customConfirm('There are unmatched technicians in the list. They will import with a default 8% company cut. Do you want to proceed?', 'Unmatched Technicians')) {
-        return;
-      }
+      await customAlert('There are unmatched technicians in the list. Please match or create technicians for all rows before proceeding.', 'Unmatched Technicians');
+      return;
     }
     
     try {
+      // 1. Commit all jobs to the database
       const res = await fetch('/api/jobs/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobs: parsedJobs }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setCustomJobLogs(prev => [...data.jobs, ...prev]);
-        await customAlert(`Successfully imported ${data.count} jobs to the ledger database!`, 'Import Success');
-        setParsedJobs([]);
-        setImportRawText('');
-        setJobsTab('ledger');
-      } else {
+      if (!res.ok) {
         const errData = await res.json();
-        await customAlert(errData.error || 'Failed to import bulk jobs.', 'Error');
+        throw new Error(errData.error || 'Failed to import bulk jobs.');
       }
-    } catch (err) {
+
+      const data = await res.json();
+      setCustomJobLogs(prev => [...data.jobs, ...prev]);
+      const batchId = data.jobs[0]?.batchId;
+
+      // 2. Group the parsed jobs by technician to generate statements
+      const jobsByTech: Record<number, any[]> = {};
+      parsedJobs.forEach(job => {
+        const tId = job.matchedTechId;
+        if (!jobsByTech[tId]) {
+          jobsByTech[tId] = [];
+        }
+        jobsByTech[tId].push(job);
+      });
+
+      // 3. For each technician, compile a payout statement CSV and upload it
+      const savedDocuments: TechDocument[] = [];
+      for (const [techIdStr, techJobs] of Object.entries(jobsByTech)) {
+        const techId = parseInt(techIdStr);
+        const tech = customTechnicians.find(t => t.id === techId);
+        if (!tech) continue;
+
+        // Determine date range for filename and header
+        const dates = techJobs.map(j => new Date(j.date)).filter(d => !isNaN(d.getTime()));
+        const maxDateObj = dates.length > 0 ? new Date(Math.max(...dates.map(d => d.getTime()))) : new Date();
+        const minDateObj = dates.length > 0 ? new Date(Math.min(...dates.map(d => d.getTime()))) : new Date();
+        
+        const formatDateString = (d: Date) => {
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          const year = d.getFullYear();
+          return `${month}.${day}.${year}`;
+        };
+
+        const fileDateStr = formatDateString(maxDateObj); // e.g. "06.27.2026"
+        const fileName = `${fileDateStr} ${tech.name}.csv`;
+
+        // Calculate adjustments
+        const currentTechAdjustment = importerTechFilter === techId.toString()
+          ? { perDiem, car: carDeduction, hotel: hotelDeduction }
+          : techAdjustments[techId];
+        const adj = currentTechAdjustment || {
+          perDiem: calculateTechnicianPerDiem(techId, techJobs).toFixed(2),
+          car: (Number(tech.carToolsDeduction) || 0).toFixed(2),
+          hotel: '0.00',
+        };
+        const pdVal = parseFloat(adj.perDiem) || 0;
+        const carVal = parseFloat(adj.car) || 0;
+        const hotelVal = parseFloat(adj.hotel) || 0;
+
+        const formatStatementDate = (value: string) => {
+          const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value);
+          if (isNaN(date.getTime())) return value;
+
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${month}/${day}/${date.getFullYear()}`;
+        };
+
+        const cleanStatementCell = (value: unknown) => String(value ?? '')
+          .replace(/[\t\r\n]+/g, ' ')
+          .trim();
+
+        const createStatementRow = (values: unknown[]) => values
+          .map(cleanStatementCell)
+          .join('\t');
+
+        let csv = '';
+        let payoutTotal = 0;
+
+        techJobs.forEach(job => {
+          payoutTotal += job.techPayout;
+          const rawCells = job.rawCells || [];
+          csv += createStatementRow([
+            formatStatementDate(job.date),
+            tech.name,
+            job.provider,
+            job.regionCode,
+            job.jobRef,
+            rawCells[5],
+            rawCells[6],
+            job.city,
+            job.stateCode,
+            job.zipCode,
+            job.jobCode,
+            job.description,
+            job.quantity,
+            job.techPayout.toFixed(2).replace('.', ','),
+          ]) + '\n';
+        });
+
+        const toolsAndCar = carVal + hotelVal;
+        const netPayout = payoutTotal + pdVal - toolsAndCar;
+        const summaryRow = (label: string, amount?: number) => createStatementRow([
+          '', '', '', '', '', '', '', '', '', '', '', label, '',
+          amount === undefined ? '' : amount.toFixed(2).replace('.', ','),
+        ]);
+
+        csv += '\n\n\n';
+        csv += summaryRow('Per diem', pdVal) + '\n';
+        csv += summaryRow('Tools and Car', -toolsAndCar) + '\n';
+        csv += '\n';
+        csv += summaryRow('Total', netPayout) + '\n';
+
+        // Upload document
+        const uploadRes = await fetch('/api/documents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            technicianId: techId,
+            name: fileName,
+            fileType: 'text/csv',
+            size: csv.length,
+            dataUrl: 'data:text/csv;base64,' + btoa(unescape(encodeURIComponent(csv))),
+            category: 'PAYMENT',
+            batchId,
+          })
+        });
+
+        if (uploadRes.ok) {
+          const newDoc = await uploadRes.json();
+          savedDocuments.push(newDoc);
+        }
+      }
+
+      setCustomDocuments(prev => [...savedDocuments, ...prev]);
+
+      await customAlert(`Imported ${data.count} jobs successfully! Generated ${savedDocuments.length} weekly statements in the Payments tab of employee profiles.`, 'Payroll Processed');
+      
+      // Reset importer state
+      setParsedJobs([]);
+      setImportRawText('');
+      setTechAdjustments({});
+      setPerDiem('0.00');
+      setCarDeduction('0.00');
+      setHotelDeduction('0.00');
+      setImporterTechFilter('ALL');
+    } catch (err: any) {
       console.error('Error committing bulk jobs:', err);
+      await customAlert(err.message || 'Error processing payroll', 'Error');
     }
   };
 
@@ -1252,6 +1913,361 @@ export default function Home() {
     }
   };
 
+  // Candidates & Recruiting helper methods
+  const handleAddCandidateClick = () => {
+    setEditingCandidate(null);
+    setCandidateForm({
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      stateCode: selectedStateCode || 'TN',
+      status: 'NEW',
+      notes: '',
+    });
+    setIsCandidateModalOpen(true);
+  };
+
+  const handleEditCandidateClick = (candidate: Candidate) => {
+    setEditingCandidate(candidate);
+    setCandidateForm({
+      firstName: candidate.firstName,
+      lastName: candidate.lastName,
+      email: candidate.email,
+      phone: candidate.phone || '',
+      stateCode: candidate.stateCode,
+      status: candidate.status || 'NEW',
+      notes: candidate.notes || '',
+    });
+    setIsCandidateModalOpen(true);
+  };
+
+  const handleSaveCandidate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!candidateForm.firstName.trim() || !candidateForm.lastName.trim() || !candidateForm.email.trim() || !candidateForm.stateCode) {
+      await customAlert('First Name, Last Name, Email, and State are required.', 'Validation Error');
+      return;
+    }
+
+    try {
+      const isEdit = !!editingCandidate;
+      const url = '/api/candidates';
+      const method = isEdit ? 'PUT' : 'POST';
+      const body = {
+        ...candidateForm,
+        id: isEdit ? editingCandidate.id : undefined,
+      };
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        const saved = await res.json();
+        if (isEdit) {
+          setCustomCandidates(prev => prev.map(c => c.id === editingCandidate.id ? saved : c));
+          await customAlert('Candidate updated successfully!', 'Success');
+        } else {
+          setCustomCandidates(prev => [saved, ...prev]);
+          await customAlert('Candidate registered successfully!', 'Success');
+        }
+        setIsCandidateModalOpen(false);
+        setEditingCandidate(null);
+      } else {
+        const err = await res.json();
+        await customAlert(err.error || 'Failed to save candidate.', 'Error');
+      }
+    } catch (err) {
+      console.error('Error saving candidate:', err);
+    }
+  };
+
+  const handleUpdateCandidateStatus = async (candidateId: number, newStatus: string) => {
+    try {
+      const res = await fetch('/api/candidates', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: candidateId, status: newStatus }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCustomCandidates(prev => prev.map(c => c.id === candidateId ? updated : c));
+      } else {
+        const err = await res.json();
+        await customAlert(err.error || 'Failed to update candidate status.', 'Error');
+      }
+    } catch (err) {
+      console.error('Error updating candidate status:', err);
+    }
+  };
+
+  const handleDeleteCandidate = async (id: number) => {
+    if (await customConfirm('Are you sure you want to delete this candidate?', 'Delete Candidate')) {
+      try {
+        const res = await fetch(`/api/candidates?id=${id}`, {
+          method: 'DELETE',
+        });
+        if (res.ok) {
+          setCustomCandidates(prev => prev.filter(c => c.id !== id));
+          await customAlert('Candidate deleted successfully.', 'Success');
+        } else {
+          const err = await res.json();
+          await customAlert(err.error || 'Failed to delete candidate.', 'Error');
+        }
+      } catch (err) {
+        console.error('Error deleting candidate:', err);
+      }
+    }
+  };
+
+  const handleCopySigningLink = async (candidateId: number) => {
+    try {
+      const res = await fetch('/api/candidates/signing-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.signingLink) {
+          if (navigator.clipboard) {
+            await navigator.clipboard.writeText(data.signingLink);
+          }
+          await customAlert(`Online signing link generated!\n\nLink: ${data.signingLink}`, 'Success');
+        }
+      } else {
+        const err = await res.json();
+        await customAlert(err.error || 'Failed to generate signing link.', 'Error');
+      }
+    } catch (err) {
+      console.error('Error generating signing link:', err);
+      await customAlert('Failed to generate signing link.', 'Error');
+    }
+  };
+
+  const handleOpenRatesConfig = (cand: Candidate) => {
+    setSendRatesCandidate(cand);
+    const defaultState = (cand.stateCode && cand.stateCode !== 'ANY' && customStates.some(s => s.code === cand.stateCode))
+      ? cand.stateCode
+      : (customStates[0]?.code || 'TN');
+    setSendRatesStateCode(defaultState);
+    const stObj = customStates.find(s => s.code === defaultState);
+    setSendRatesCompanyCut(stObj ? (stObj.defaultCut ? Number(stObj.defaultCut).toFixed(2) : '8.00') : '8.00');
+    setSendRatesPerDiem(stObj ? (stObj.employeePerDiem ? Number(stObj.employeePerDiem).toFixed(2) : '0.00') : '0.00');
+    setSendRatesSelectedProviders([]);
+    setIsSendRatesConfigOpen(true);
+  };
+
+  const handleSendRatesStateChange = (newCode: string) => {
+    setSendRatesStateCode(newCode);
+    setSendRatesSelectedProviders([]);
+    const stObj = customStates.find(s => s.code === newCode);
+    if (stObj) {
+      setSendRatesCompanyCut(stObj.defaultCut ? Number(stObj.defaultCut).toFixed(2) : '8.00');
+      setSendRatesPerDiem(stObj.employeePerDiem ? Number(stObj.employeePerDiem).toFixed(2) : '0.00');
+    }
+  };
+
+  const handleConfirmSendRates = () => {
+    if (!sendRatesCandidate) return;
+    setIsSendRatesConfigOpen(false);
+    handleOpenEmailPreview(
+      sendRatesCandidate.id,
+      'RATES',
+      sendRatesStateCode,
+      sendRatesSelectedProviders,
+      sendRatesCompanyCut,
+      sendRatesPerDiem
+    );
+  };
+
+  const handleViewCandidateDocs = async (cand: Candidate) => {
+    setSelectedCandForDocs(cand);
+    setCandidateDocsList([]);
+    setCandidateUploadLink(null);
+    setCandidateDocsLoading(true);
+    setIsCandidateDocsOpen(true);
+    try {
+      const res = await fetch(`/api/candidates/documents?candidateId=${cand.id}`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCandidateDocsList(data.documents || []);
+      }
+      const linkRes = await fetch('/api/candidates/upload-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateId: cand.id }),
+      });
+      const linkData = await linkRes.json();
+      if (linkRes.ok && linkData.uploadLink) {
+        setCandidateUploadLink(linkData.uploadLink);
+      }
+    } catch (err) {
+      console.error('Error fetching candidate documents:', err);
+    } finally {
+      setCandidateDocsLoading(false);
+    }
+  };
+
+  const handleOpenEmailPreview = async (
+    candidateId: number,
+    templateType: string,
+    stateCode?: string,
+    selectedProviders?: string[],
+    companyCutPercent?: number | string,
+    perDiemOverride?: number | string
+  ) => {
+    try {
+      const res = await fetch('/api/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateId,
+          templateType,
+          stateCode,
+          selectedProviders,
+          companyCutPercent,
+          perDiemOverride,
+          previewOnly: true,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.emailDetails) {
+          setEmailPreviewData({
+            candidateId,
+            templateType,
+            to: data.emailDetails.to,
+            subject: data.emailDetails.subject,
+            bodyHtml: data.emailDetails.bodyHtml,
+            bodyText: data.emailDetails.bodyText,
+            attachments: data.emailDetails.attachments || [],
+            stateCode,
+            companyCutPercent,
+            perDiemOverride,
+            availableProviders: data.emailDetails.availableProviders || [],
+            selectedProviders: data.emailDetails.selectedProviders || data.emailDetails.availableProviders || [],
+          });
+          setEmailPreviewTab('preview');
+          setIsEmailPreviewOpen(true);
+        }
+      } else {
+        const err = await res.json();
+        await customAlert(err.error || 'Failed to generate email preview.', 'Error');
+      }
+    } catch (err) {
+      console.error('Error generating preview:', err);
+    }
+  };
+
+  const handleToggleProviderFilter = async (provider: string) => {
+    if (!emailPreviewData) return;
+    const avail = emailPreviewData.availableProviders || [];
+    if (avail.length === 0) return;
+
+    const currentSelected = emailPreviewData.selectedProviders || avail;
+
+    let newSelected: string[] = [];
+    if (provider === 'ALL') {
+      newSelected = [...avail];
+    } else {
+      if (currentSelected.length === avail.length || !currentSelected.includes(provider) || currentSelected.length > 1) {
+        newSelected = [provider];
+      } else {
+        newSelected = [...avail];
+      }
+    }
+
+    // Instantly update selectedProviders in local state for 0ms visual button feedback
+    setEmailPreviewData(prev => prev ? {
+      ...prev,
+      selectedProviders: newSelected
+    } : null);
+
+    setIsUpdatingRates(true);
+
+    try {
+      const res = await fetch('/api/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateId: emailPreviewData.candidateId,
+          templateType: emailPreviewData.templateType,
+          stateCode: emailPreviewData.stateCode,
+          selectedProviders: newSelected,
+          companyCutPercent: emailPreviewData.companyCutPercent,
+          perDiemOverride: emailPreviewData.perDiemOverride,
+          previewOnly: true,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.emailDetails) {
+          setEmailPreviewData(prev => prev ? {
+            ...prev,
+            subject: data.emailDetails.subject,
+            bodyHtml: data.emailDetails.bodyHtml,
+            bodyText: data.emailDetails.bodyText,
+            selectedProviders: data.emailDetails.selectedProviders || newSelected,
+            availableProviders: data.emailDetails.availableProviders || avail,
+          } : null);
+        }
+      }
+    } catch (err) {
+      console.error('Error updating provider filter preview:', err);
+    } finally {
+      setIsUpdatingRates(false);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailPreviewData) return;
+    setSendingEmail(true);
+
+    try {
+      const res = await fetch('/api/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateId: emailPreviewData.candidateId,
+          templateType: emailPreviewData.templateType,
+          stateCode: emailPreviewData.stateCode,
+          selectedProviders: emailPreviewData.selectedProviders,
+          companyCutPercent: emailPreviewData.companyCutPercent,
+          perDiemOverride: emailPreviewData.perDiemOverride,
+          customSubject: emailPreviewData.subject,
+          customBody: emailPreviewData.bodyHtml,
+          previewOnly: false,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          await customAlert(data.logMessage || 'Email sent successfully!', 'Email Status');
+          // Update local candidate status
+          if (data.candidate) {
+            setCustomCandidates(prev => prev.map(c => c.id === data.candidate.id ? data.candidate : c));
+          }
+          setIsEmailPreviewOpen(false);
+          setEmailPreviewData(null);
+        }
+      } else {
+        const err = await res.json();
+        await customAlert(err.error || 'Failed to send email.', 'Error');
+      }
+    } catch (err) {
+      console.error('Error sending email:', err);
+      await customAlert('Failed to dispatch email.', 'Error');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   // Load from localStorage on mount
   useEffect(() => {
     async function loadData() {
@@ -1268,6 +2284,7 @@ export default function Home() {
           setCustomDocuments(data.documents || []);
           setCustomTodos(data.todos || []);
           setAdmins(data.admins || []);
+          setCustomCandidates(data.candidates || []);
         }
       } catch (e) {
         console.error('Failed to bootstrap data:', e);
@@ -1339,6 +2356,7 @@ export default function Home() {
           setCustomJobLogs(data.jobLogs || []);
           setCustomDocuments(data.documents || []);
           setCustomTodos(data.todos || []);
+          setCustomCandidates(data.candidates || []);
         }
         setSelectedStateCode(null);
         setSelectedTechId(null);
@@ -1353,7 +2371,17 @@ export default function Home() {
     }
   };
 
-  const handleUpdateState = async (requiredTechs: number, requirements: string, companyPerDiem: number, employeePerDiem: number) => {
+  const handleUpdateState = async (
+    requiredTechs: number,
+    requirements: string,
+    companyPerDiem: number,
+    employeePerDiem: number,
+    onboardingWaitTime?: string,
+    monthlySalary?: string,
+    description?: string,
+    vacancyCities?: string,
+    defaultCut?: number
+  ) => {
     if (!selectedStateCode) return;
     try {
       const res = await fetch('/api/states', {
@@ -1364,7 +2392,12 @@ export default function Home() {
           requiredTechs,
           requirements,
           companyPerDiem,
-          employeePerDiem
+          employeePerDiem,
+          onboardingWaitTime,
+          monthlySalary,
+          description,
+          vacancyCities,
+          defaultCut
         })
       });
       if (res.ok) {
@@ -1379,6 +2412,7 @@ export default function Home() {
           setCustomJobLogs(data.jobLogs || []);
           setCustomDocuments(data.documents || []);
           setCustomTodos(data.todos || []);
+          setCustomCandidates(data.candidates || []);
         }
         setIsEditingStateDetails(false);
       } else {
@@ -1692,23 +2726,54 @@ export default function Home() {
   };
 
   const uniqueProviders = useMemo(() => {
-    const providersSet = new Set<string>();
-    customRatePlans.forEach(rp => providersSet.add(rp.provider));
-    return Array.from(providersSet);
-  }, [customRatePlans]);
+    const map = new Map<string, string>();
+    const sourcePlans = ratesStateFilter === 'ALL'
+      ? customRatePlans
+      : customRatePlans.filter(rp => rp.stateCode === ratesStateFilter);
 
-  // Filter job logs by global search query
-  const filteredJobLogs = useMemo(() => {
-    if (!globalSearchQuery) return customJobLogs;
-    const q = globalSearchQuery.toLowerCase();
-    return customJobLogs.filter(j => 
-      j.technicianName.toLowerCase().includes(q) ||
-      j.cityName.toLowerCase().includes(q) ||
-      j.provider.toLowerCase().includes(q) ||
-      j.ratePlanCode.toLowerCase().includes(q) ||
-      j.id.toString().includes(q)
-    );
-  }, [globalSearchQuery, customJobLogs]);
+    sourcePlans.forEach(rp => {
+      if (rp.provider && rp.provider.trim()) {
+        const trimmed = rp.provider.trim();
+        const key = trimmed.toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, trimmed);
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }, [customRatePlans, ratesStateFilter]);
+
+  // Reset provider filter if current provider does not exist in selected state
+  useEffect(() => {
+    if (ratesProviderFilter !== 'ALL') {
+      const match = uniqueProviders.some(p => p.toLowerCase() === ratesProviderFilter.toLowerCase());
+      if (!match) {
+        setRatesProviderFilter('ALL');
+      }
+    }
+  }, [ratesStateFilter, uniqueProviders, ratesProviderFilter]);
+
+  const techStateProviders = useMemo(() => {
+    const map = new Map<string, string>();
+    const sourcePlans = techForm.stateCode
+      ? customRatePlans.filter(rp => rp.stateCode === techForm.stateCode)
+      : customRatePlans;
+
+    sourcePlans.forEach(rp => {
+      if (rp.provider && rp.provider.trim()) {
+        const trimmed = rp.provider.trim();
+        const key = trimmed.toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, trimmed);
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }, [customRatePlans, techForm.stateCode]);
+
+
 
   // Filter rate plans by global search query and local filters
   const filteredRatePlans = useMemo(() => {
@@ -1809,7 +2874,7 @@ export default function Home() {
     }
 
     const docTitle = type === 'company' 
-      ? `NetCore CRM - Company Master Rates (${providerFilter ? providerFilter + ' - ' : ''}${stateName})`
+      ? `NETCORE CRM - Company Master Rates (${providerFilter ? providerFilter + ' - ' : ''}${stateName})`
       : `Contractor Payout Rates (${providerFilter ? providerFilter + ' - ' : ''}${stateName})`;
 
     const headingText = type === 'company'
@@ -2025,6 +3090,11 @@ export default function Home() {
       setEditRequirements(selectedState.requirements || '');
       setEditCompanyPerDiem((selectedState.companyPerDiem ?? 0).toFixed(2));
       setEditEmployeePerDiem((selectedState.employeePerDiem ?? 0).toFixed(2));
+      setEditOnboardingWaitTime(selectedState.onboardingWaitTime || '');
+      setEditMonthlySalary(selectedState.monthlySalary || '');
+      setEditDescription(selectedState.description || '');
+      setEditVacancyCities(selectedState.vacancyCities || '');
+      setEditDefaultCut((selectedState.defaultCut ?? 8.00).toFixed(2));
       setIsEditingStateDetails(false);
     }
   }, [selectedState]);
@@ -2040,15 +3110,51 @@ export default function Home() {
     };
   }, [selectedTechId, customTechnicians, customVehicles]);
 
+  const calculateBatchPerDiemTotals = (jobs: JobLog[]) => {
+    const workDaysByTechAndBatch = new Map<string, { technicianId: number; stateCode: string; days: Set<string> }>();
+
+    jobs.forEach(job => {
+      if (!job.batchId) return;
+
+      const key = `${job.batchId}:${job.technicianId}`;
+      const entry = workDaysByTechAndBatch.get(key) || {
+        technicianId: job.technicianId,
+        stateCode: job.stateCode,
+        days: new Set<string>(),
+      };
+      entry.days.add(job.date);
+      workDaysByTechAndBatch.set(key, entry);
+    });
+
+    return Array.from(workDaysByTechAndBatch.values()).reduce((totals, entry) => {
+      const technician = customTechnicians.find(tech => tech.id === entry.technicianId);
+      const state = customStates.find(item => item.id === technician?.stateId)
+        || customStates.find(item => item.code === entry.stateCode);
+      const companyDailyRate = Number(state?.companyPerDiem) || 0;
+      const employeeDailyRate = technician?.perDiemOverride != null
+        ? Number(technician.perDiemOverride)
+        : Number(state?.employeePerDiem) || 0;
+      const workDayCount = entry.days.size;
+      const companyPerDiem = companyDailyRate * workDayCount;
+      const employeePerDiem = employeeDailyRate * workDayCount;
+
+      totals.revenue += companyPerDiem;
+      totals.payout += employeePerDiem;
+      totals.profit += companyPerDiem - employeePerDiem;
+      return totals;
+    }, { revenue: 0, payout: 0, profit: 0 });
+  };
+
   // Compute stats based on active state selection
   const stats = useMemo(() => {
     const filteredJobs = selectedStateCode 
       ? customJobLogs.filter(j => j.stateCode === selectedStateCode)
       : customJobLogs;
 
-    const totalRevenue = filteredJobs.reduce((acc, j) => acc + j.companyRevenue, 0);
-    const totalPayout = filteredJobs.reduce((acc, j) => acc + j.techPayout, 0);
-    const totalProfit = filteredJobs.reduce((acc, j) => acc + j.companyProfit, 0);
+    const perDiemTotals = calculateBatchPerDiemTotals(filteredJobs);
+    const totalRevenue = filteredJobs.reduce((acc, j) => acc + j.companyRevenue, 0) + perDiemTotals.revenue;
+    const totalPayout = filteredJobs.reduce((acc, j) => acc + j.techPayout, 0) + perDiemTotals.payout;
+    const totalProfit = filteredJobs.reduce((acc, j) => acc + j.companyProfit, 0) + perDiemTotals.profit;
     const margin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
     return {
@@ -2058,7 +3164,7 @@ export default function Home() {
       margin: margin,
       jobCount: filteredJobs.length,
     };
-  }, [customJobLogs, selectedStateCode]);
+  }, [customJobLogs, selectedStateCode, customStates, customTechnicians]);
 
   // Cities with active jobs in selected state
   const activeCitiesInState = useMemo(() => {
@@ -2145,8 +3251,10 @@ export default function Home() {
     }
 
     // Gross Revenue Trend
-    const curRevenue = currentJobs.reduce((acc, j) => acc + j.companyRevenue, 0);
-    const prevRevenue = previousJobs.reduce((acc, j) => acc + j.companyRevenue, 0);
+    const currentPerDiem = calculateBatchPerDiemTotals(currentJobs);
+    const previousPerDiem = calculateBatchPerDiemTotals(previousJobs);
+    const curRevenue = currentJobs.reduce((acc, j) => acc + j.companyRevenue, 0) + currentPerDiem.revenue;
+    const prevRevenue = previousJobs.reduce((acc, j) => acc + j.companyRevenue, 0) + previousPerDiem.revenue;
     let revenueTrend = 0;
     if (prevRevenue > 0) {
       revenueTrend = ((curRevenue - prevRevenue) / prevRevenue) * 100;
@@ -2157,8 +3265,8 @@ export default function Home() {
     }
 
     // Net Profit Trend
-    const curProfit = currentJobs.reduce((acc, j) => acc + j.companyProfit, 0);
-    const prevProfit = previousJobs.reduce((acc, j) => acc + j.companyProfit, 0);
+    const curProfit = currentJobs.reduce((acc, j) => acc + j.companyProfit, 0) + currentPerDiem.profit;
+    const prevProfit = previousJobs.reduce((acc, j) => acc + j.companyProfit, 0) + previousPerDiem.profit;
     let profitTrend = 0;
     if (prevProfit > 0) {
       profitTrend = ((curProfit - prevProfit) / prevProfit) * 100;
@@ -2191,7 +3299,7 @@ export default function Home() {
       profitTrend,
       techTrend
     };
-  }, [customJobLogs, customTechnicians, selectedStateCode]);
+  }, [customJobLogs, customTechnicians, customStates, selectedStateCode]);
 
   // Handler for state selection from map
   const handleSelectState = (stateCode: string | null) => {
@@ -2242,11 +3350,11 @@ export default function Home() {
       <div className="min-h-screen bg-[#09090b] flex items-center justify-center p-4 text-zinc-100 font-sans animate-fadeIn">
         <div className="w-full max-w-sm bg-[#18181b] border border-zinc-800 rounded-xl p-8 shadow-2xl space-y-6">
           <div className="text-center space-y-1.5">
-            <h1 className="text-2xl font-black tracking-tight text-white">NetCore CRM</h1>
+            <h1 className="text-2xl font-black tracking-tight text-white">NETCORE CRM</h1>
             <p className="text-xs text-zinc-400 font-semibold">Admin Sign-In Portal</p>
           </div>
 
-          <form onSubmit={handleLoginSubmit} className="space-y-4">
+          <form onSubmit={(e) => { e.preventDefault(); handleLoginSubmit(e); }} className="space-y-4">
             {loginError && (
               <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs px-3 py-2 rounded">
                 {loginError}
@@ -2276,12 +3384,19 @@ export default function Home() {
                 className="w-full bg-[#09090b] border border-zinc-800 rounded-md px-3.5 py-2 text-xs text-zinc-200 focus:outline-none focus:border-white placeholder-zinc-700 font-medium"
               />
             </div>
-
             <button
               type="submit"
-              className="w-full bg-white text-zinc-950 text-xs font-bold py-2.5 rounded-md hover:bg-zinc-200 transition-all shadow-md shadow-white/5 cursor-pointer font-semibold"
+              disabled={isLoggingIn}
+              className="w-full bg-white text-zinc-950 text-xs font-bold py-2.5 rounded-md hover:bg-zinc-200 disabled:opacity-50 transition-all shadow-md shadow-white/5 cursor-pointer font-semibold flex items-center justify-center space-x-2"
             >
-              Sign In
+              {isLoggingIn ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Signing In...</span>
+                </>
+              ) : (
+                <span>Sign In</span>
+              )}
             </button>
           </form>
         </div>
@@ -2290,7 +3405,9 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen bg-[#09090b] text-slate-100 font-sans overflow-hidden relative">
+    <div className={`flex h-screen font-sans overflow-hidden relative transition-colors duration-200 ${
+      theme === 'light' ? 'bg-[#f8f9fa] text-[#202124]' : 'bg-[#09090b] text-slate-100'
+    }`}>
       {/* Sidebar Navigation */}
       <Sidebar 
         activeSection={activeSection} 
@@ -2299,6 +3416,9 @@ export default function Home() {
         onSelectTechnician={handleSelectTechnician}
         technicians={customTechnicians}
         currentUser={currentUser}
+        ticketsCount={unreadTicketsCount}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         onInviteClick={() => setIsInviteModalOpen(true)}
         onLogoutClick={handleLogout}
         isOpen={isSidebarOpen}
@@ -2323,7 +3443,7 @@ export default function Home() {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <span className="text-white font-extrabold text-sm tracking-wide">NetCore CRM</span>
+          <span className="text-white font-extrabold text-sm tracking-wide">NETCORE CRM</span>
           <div className="w-8" /> {/* Spacer to center title */}
         </header>
 
@@ -2351,7 +3471,6 @@ export default function Home() {
                   <button 
                     onClick={() => {
                       setActiveSection('jobs');
-                      setJobsTab('importer');
                     }}
                     className="bg-[#3b82f6] hover:bg-[#2563eb] text-white text-xs font-bold px-4 py-2 rounded-md shadow-lg shadow-blue-500/10 transition-all cursor-pointer flex items-center space-x-1"
                   >
@@ -2532,6 +3651,36 @@ export default function Home() {
                           <span className="text-zinc-500">Base Location:</span>
                           <span className="bg-[#09090b] px-2 py-0.5 rounded font-bold text-slate-300">{selectedTechnician.stateCode}</span>
                         </div>
+                        <div className="flex justify-between">
+                          <span className="text-zinc-500">Per Diem Rate:</span>
+                          {selectedTechnician.perDiemOverride != null ? (
+                            <span className="font-mono font-semibold text-emerald-400">
+                              ${selectedTechnician.perDiemOverride.toFixed(2)} override
+                            </span>
+                          ) : (
+                            <span className="font-mono text-slate-300">
+                              State default (${(customStates.find(state => state.id === selectedTechnician.stateId)?.employeePerDiem ?? 0).toFixed(2)})
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-zinc-500">Car / Tools Deduction:</span>
+                          <span className="font-mono text-slate-300">
+                            ${(selectedTechnician.carToolsDeduction ?? 0).toFixed(2)}
+                          </span>
+                        </div>
+                        {selectedTechnician.username && (
+                          <div className="flex justify-between">
+                            <span className="text-zinc-500">App Login Username:</span>
+                            <span className="font-semibold text-slate-300">{selectedTechnician.username}</span>
+                          </div>
+                        )}
+                        {selectedTechnician.password && (
+                          <div className="flex justify-between">
+                            <span className="text-zinc-500">App Login Password:</span>
+                            <span className="font-semibold text-slate-300">{selectedTechnician.password}</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Assigned Vehicle */}
@@ -2616,7 +3765,12 @@ export default function Home() {
                               parseInt(editRequiredTechs) || 0,
                               editRequirements,
                               parseFloat(editCompanyPerDiem) || 0,
-                              parseFloat(editEmployeePerDiem) || 0
+                              parseFloat(editEmployeePerDiem) || 0,
+                              editOnboardingWaitTime,
+                              editMonthlySalary,
+                              undefined, // description
+                              undefined, // vacancyCities
+                              parseFloat(editDefaultCut) || 8.00
                             );
                           }}
                           className="space-y-4 text-xs"
@@ -2643,7 +3797,7 @@ export default function Home() {
                             />
                           </div>
 
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-3 gap-3">
                             <div className="space-y-1">
                               <label className="text-[10px] uppercase font-bold text-zinc-500 block">Co. Per Diem ($)</label>
                               <input 
@@ -2664,6 +3818,18 @@ export default function Home() {
                                 value={editEmployeePerDiem}
                                 onChange={(e) => setEditEmployeePerDiem(e.target.value)}
                                 className="w-full bg-[#09090b] border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 font-mono"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] uppercase font-bold text-zinc-500 block">Default Cut (%)</label>
+                              <input 
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max="100"
+                                value={editDefaultCut}
+                                onChange={(e) => setEditDefaultCut(e.target.value)}
+                                className="w-full bg-[#09090b] border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 font-mono font-bold"
                               />
                             </div>
                           </div>
@@ -2736,6 +3902,12 @@ export default function Home() {
                                     <span className="text-zinc-500">Per Diem Company Cut:</span>
                                     <span className={`font-mono font-bold ${retention >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                       ${retention.toFixed(2)} ({retentionPct.toFixed(0)}%)
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between items-center py-1 border-b border-zinc-800/40">
+                                    <span className="text-zinc-500">Default State Cut:</span>
+                                    <span className="font-mono font-bold text-slate-300">
+                                      {(selectedState.defaultCut ?? 8.00).toFixed(2)}%
                                     </span>
                                   </div>
                                 </>
@@ -2943,103 +4115,7 @@ export default function Home() {
                         })}
                       </div>
 
-                      {/* Daily Tasks for this day */}
-                      <div className="bg-[#09090b] p-3 rounded-lg border border-zinc-800 mt-4 text-[11px]">
-                        <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2 mb-2 font-bold text-slate-200">
-                          <div className="flex items-center space-x-1.5">
-                            <CheckSquare className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
-                            <span>Daily Tasks (June {currentDay}, 2026)</span>
-                          </div>
-                          <span className="text-[9px] bg-zinc-800 text-zinc-400 px-1 py-0.2 rounded font-mono">
-                            {selectedDayTodos.filter(t => !t.completed).length} pending
-                          </span>
-                        </div>
 
-                        {selectedDayTodos.length === 0 ? (
-                          <p className="text-zinc-500 italic text-[10px] py-1.5">No tasks scheduled for this day.</p>
-                        ) : (
-                          <div className="space-y-2 max-h-48 overflow-y-auto pr-0.5 custom-scrollbar">
-                            {selectedDayTodos.map(todo => (
-                              <div key={todo.id} className="flex flex-col bg-zinc-900/60 p-2 rounded border border-zinc-800/40 gap-1 font-sans">
-                                <div className="flex items-center justify-between">
-                                  <label className="flex items-center space-x-2 flex-1 cursor-pointer select-none">
-                                    <input 
-                                      type="checkbox"
-                                      checked={todo.completed}
-                                      onChange={() => handleToggleTodo(todo.id)}
-                                      className="w-3 h-3 rounded bg-[#09090b] border-zinc-700 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                                    />
-                                    <span className={`text-[10px] font-semibold ${todo.completed ? 'line-through text-zinc-500' : 'text-zinc-300'}`}>
-                                      {todo.text}
-                                    </span>
-                                  </label>
-                                  <div className="flex items-center space-x-1.5 shrink-0">
-                                    {todo.priority && (
-                                      <span className={`text-[8px] font-extrabold uppercase px-1 rounded-sm border ${
-                                        todo.priority === 'HIGH' 
-                                          ? 'bg-rose-500/10 text-rose-400 border-rose-500/25' 
-                                          : todo.priority === 'MEDIUM' 
-                                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/25' 
-                                            : 'bg-zinc-800 text-zinc-500 border-zinc-700/60'
-                                      }`}>
-                                        {todo.priority === 'HIGH' ? 'Важно' : todo.priority === 'MEDIUM' ? 'Средний' : 'Низкий'}
-                                      </span>
-                                    )}
-                                    <span className="text-[8px] text-zinc-500 font-semibold uppercase tracking-wider bg-zinc-800/30 px-1 py-0.2 rounded border border-zinc-800">
-                                      {todo.creator}
-                                    </span>
-                                  </div>
-                                </div>
-                                {todo.description && (
-                                  <p className={`text-[9px] pl-5 leading-normal ${todo.completed ? 'line-through text-zinc-600' : 'text-zinc-400'}`}>
-                                    {todo.description}
-                                  </p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Inline Creator */}
-                        <div className="flex flex-col gap-1.5 mt-3 pt-2.5 border-t border-zinc-800/60">
-                          <input 
-                            type="text"
-                            placeholder="New task title..."
-                            value={inlineTodoText}
-                            onChange={(e) => setInlineTodoText(e.target.value)}
-                            className="w-full bg-[#18181b] border border-zinc-800 rounded px-2.5 py-1 text-[10px] text-zinc-200 focus:outline-none focus:border-blue-500 placeholder-zinc-600 font-semibold"
-                          />
-                          <div className="flex gap-1.5">
-                            <select
-                              value={inlineTodoPriority}
-                              onChange={(e) => setInlineTodoPriority(e.target.value as 'HIGH' | 'MEDIUM' | 'LOW')}
-                              className="bg-[#18181b] border border-zinc-800 rounded px-1.5 py-1 text-[10px] text-zinc-300 focus:outline-none focus:border-blue-500 font-semibold shrink-0 cursor-pointer"
-                            >
-                              <option value="LOW">Низкий</option>
-                              <option value="MEDIUM">Средний</option>
-                              <option value="HIGH">Важно</option>
-                            </select>
-                            <input 
-                              type="text"
-                              placeholder="Task description (optional)..."
-                              value={inlineTodoDesc}
-                              onChange={(e) => setInlineTodoDesc(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  handleAddInlineTodo();
-                                }
-                              }}
-                              className="flex-1 bg-[#18181b] border border-zinc-800 rounded px-2 py-1 text-[10px] text-zinc-200 focus:outline-none focus:border-blue-500 placeholder-zinc-600 font-medium"
-                            />
-                            <button
-                              onClick={handleAddInlineTodo}
-                              className="bg-zinc-100 hover:bg-zinc-200 text-zinc-950 text-[9px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer font-semibold uppercase tracking-wider"
-                            >
-                              Add
-                            </button>
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   )}
 
@@ -3062,8 +4138,9 @@ export default function Home() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                   {customStates.map(state => {
                     const stateJobs = customJobLogs.filter(j => j.stateCode === state.code);
-                    const revenue = stateJobs.reduce((sum, j) => sum + j.companyRevenue, 0);
-                    const profit = stateJobs.reduce((sum, j) => sum + j.companyProfit, 0);
+                    const perDiemTotals = calculateBatchPerDiemTotals(stateJobs);
+                    const revenue = stateJobs.reduce((sum, j) => sum + j.companyRevenue, 0) + perDiemTotals.revenue;
+                    const profit = stateJobs.reduce((sum, j) => sum + j.companyProfit, 0) + perDiemTotals.profit;
                     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
                     
                     return (
@@ -3113,231 +4190,141 @@ export default function Home() {
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 pb-4 border-b border-zinc-800">
                 <div>
-                  <h3 className="text-base font-bold text-slate-100 tracking-wide">
-                    Jobs & Payouts Ledger
+                  <h3 className="text-base font-bold text-slate-100 tracking-wide flex items-center gap-2">
+                    <span className="text-[#3b82f6]">💰</span> Jobs & Payroll Processor
                   </h3>
                   <p className="text-xs text-zinc-400 mt-1">
-                    Manage dispatched jobs, import weekly Friday sheets, and process contractor payouts.
+                    Paste weekly spreadsheet logs to calculate payouts, customize technician per diems/deductions, and generate statements.
                   </p>
-                </div>
-                
-                {/* Tabs Selector */}
-                <div className="flex bg-[#09090b] p-1 rounded-lg border border-[#27272a]">
-                  <button
-                    onClick={() => setJobsTab('importer')}
-                    className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                      jobsTab === 'importer'
-                        ? 'bg-[#3b82f6] text-white'
-                        : 'text-zinc-400 hover:text-zinc-200'
-                    }`}
-                  >
-                    Weekly Importer
-                  </button>
-                  <button
-                    onClick={() => setJobsTab('ledger')}
-                    className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                      jobsTab === 'ledger'
-                        ? 'bg-[#3b82f6] text-white'
-                        : 'text-zinc-400 hover:text-zinc-200'
-                    }`}
-                  >
-                    Jobs Log Ledger
-                  </button>
                 </div>
               </div>
 
-              {jobsTab === 'importer' ? (
-                /* Weekly Importer Tab */
+              {parsedJobs.length === 0 ? (
+                /* Paste input state */
+                <div className="space-y-4">
+                  <div className="bg-[#09090b] rounded-xl p-5 border border-zinc-800 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-bold text-slate-300">
+                        Paste Weekly Spreadsheet Payout Rows (Tab-separated)
+                      </label>
+                      {importRawText.trim() && (
+                        <button
+                          onClick={() => setImportRawText('')}
+                          className="text-[10px] text-red-400 hover:underline cursor-pointer bg-transparent border-0"
+                        >
+                          Clear Text
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      rows={12}
+                      value={importRawText}
+                      onChange={(e) => setImportRawText(e.target.value)}
+                      placeholder="06/25/2026&#9;0967 Usmon Salaev&#9;Charter&#9;TWI CHARTER MI&#9;706596&#9;8284131440090820&#9;654 FRANKFORT AVE LOT 13&#9;ELBERTA&#9;MI&#9;496289800&#9;RRTCDP&#9;Residential Rescue Double Play Trouble Call&#9;1&#9;55,20 $"
+                      className="w-full bg-[#09090b] border border-zinc-800 rounded-xl p-4 text-[11px] font-mono text-slate-300 focus:outline-none focus:border-[#3b82f6] placeholder-zinc-700 custom-scrollbar resize-none"
+                    />
+                    <div className="flex justify-between items-center text-[10px] text-zinc-500">
+                      <p>
+                        * Paste rows directly from Excel/Google Sheets. Delimiter is automatically detected.
+                      </p>
+                      <button
+                        onClick={handleParseSheet}
+                        disabled={!importRawText.trim()}
+                        className="bg-zinc-100 text-zinc-950 hover:bg-zinc-200 disabled:opacity-40 disabled:hover:bg-zinc-100 text-xs font-bold px-6 py-2.5 rounded-lg shadow-lg shadow-zinc-500/5 transition-all cursor-pointer border-0"
+                      >
+                        Parse & Validate Payouts
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Review & process layout */
                 <div className="space-y-6">
-                  {parsedJobs.length === 0 ? (
-                    /* Input State */
-                    <div className="space-y-4">
-                      <div className="bg-[#09090b] rounded-xl p-8 border-2 border-dashed border-[#27272a] flex flex-col items-center justify-center text-center space-y-4">
-                        <div className="w-12 h-12 rounded-full bg-zinc-800/30 flex items-center justify-center text-zinc-100">
-                          <FileSpreadsheet className="w-6 h-6" />
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-sm font-bold text-zinc-200">Upload Payout Spreadsheet</p>
-                          <p className="text-xs text-zinc-500 max-w-md">
-                            Drag & drop a CSV file containing check details, or select from your device.
-                          </p>
-                        </div>
-                        <div className="relative">
-                          <input
-                            type="file"
-                            accept=".csv,.txt,.tsv"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onload = (event) => {
-                                  const text = event.target?.result as string;
-                                  if (text) {
-                                    setImportRawText(text);
-                                    // Parse immediately using the text
-                                    const lines = text.split(/\r?\n/);
-                                    if (lines.length > 0) {
-                                      // Trigger parse helper directly by updating state and using local variable
-                                      // We can directly call standard handler if we set it in state first, but let's parse it using local method or trigger button click
-                                    }
-                                  }
-                                };
-                                reader.readAsText(file);
-                              }
-                            }}
-                            className="absolute inset-0 opacity-0 cursor-pointer w-full"
-                          />
-                          <button className="bg-[#1e293b] border border-[#27272a] text-slate-300 hover:bg-[#28354b] text-xs font-bold px-4 py-2 rounded-lg transition-all cursor-pointer">
-                            Browse Files
-                          </button>
-                        </div>
+                  {/* Summary Bar */}
+                  <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-[#09090b] p-4 rounded-xl border border-zinc-800">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center space-x-2 bg-[#18181b] border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-slate-300">
+                        <span className="text-[10px] uppercase font-bold text-zinc-500">Filter Employee:</span>
+                        <select
+                          value={importerTechFilter}
+                          onChange={(e) => setImporterTechFilter(e.target.value)}
+                          className="bg-transparent border-none text-zinc-200 focus:outline-none cursor-pointer text-xs font-semibold"
+                        >
+                          <option value="ALL" className="bg-[#18181b]">All Employees ({parsedJobs.length} rows)</option>
+                          <option value="UNMATCHED" className="bg-[#18181b]">Unmatched Techs ({parsedJobs.filter(j => !j.matchedTechId).length} rows)</option>
+                          {Array.from(new Set(parsedJobs.map(j => j.matchedTechId).filter(Boolean))).map(id => {
+                            const t = customTechnicians.find(tech => tech.id === id);
+                            const count = parsedJobs.filter(j => j.matchedTechId === id).length;
+                            return (
+                              <option key={id} value={id?.toString()} className="bg-[#18181b]">{t?.name || 'Unknown'} ({count} rows)</option>
+                            );
+                          })}
+                        </select>
                       </div>
 
-                      <div className="bg-[#18181b] rounded-xl p-5 border border-zinc-800 space-y-3">
-                        <div className="flex justify-between items-center">
-                          <label className="text-xs font-bold text-slate-300">
-                            Or Paste Raw Cell Data (from Excel / Google Sheets)
-                          </label>
-                          {importRawText.trim() && (
-                            <button
-                              onClick={() => setImportRawText('')}
-                              className="text-[10px] text-red-400 hover:underline cursor-pointer"
-                            >
-                              Clear Text
-                            </button>
-                          )}
-                        </div>
-                        <textarea
-                          rows={8}
-                          value={importRawText}
-                          onChange={(e) => setImportRawText(e.target.value)}
-                          placeholder="Date&#9;Tech&#9;Client&#9;Job&#9;City&#9;State&#9;Job Code&#9;Quantity&#9;Столбец1&#10;04/13/2026&#9;6375 Dzmitry&#9;Charter&#9;409009&#9;ATHENS&#9;TN&#9;RFSP&#9;1&#9;56.98 $"
-                          className="w-full bg-[#09090b] border border-[#27272a] rounded-xl p-4 text-xs font-mono text-slate-300 focus:outline-none focus:border-[#3b82f6] placeholder-slate-600 custom-scrollbar"
-                        />
-                        <div className="flex justify-end">
-                          <button
-                            onClick={handleParseSheet}
-                            disabled={!importRawText.trim()}
-                            className="bg-zinc-100 text-zinc-950 hover:bg-zinc-200 disabled:opacity-40 disabled:hover:bg-zinc-100 text-xs font-bold px-5 py-2.5 rounded-lg shadow-lg shadow-zinc-500/5 transition-all cursor-pointer"
-                          >
-                            Parse & Process Spreadsheet
-                          </button>
-                        </div>
+                      <div className="flex items-center space-x-2 bg-[#18181b] border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-slate-300">
+                        <span className="text-[10px] uppercase font-bold text-zinc-500">Set All States:</span>
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            handleBulkSetState(e.target.value);
+                            e.target.value = "";
+                          }}
+                          className="bg-transparent border-none text-zinc-200 focus:outline-none cursor-pointer text-xs font-semibold"
+                        >
+                          <option value="" className="bg-[#18181b]">-- Choose State --</option>
+                          {customStates.map(s => (
+                            <option key={s.code} value={s.code} className="bg-[#18181b]">{s.name} ({s.code})</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
-                  ) : (
-                    /* Review & Edit State */
-                    <div className="space-y-6">
-                      
-                      {/* Control Panel */}
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#09090b] p-4 rounded-xl border border-[#27272a]">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <div className="flex items-center space-x-2 bg-[#18181b] border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-slate-300">
-                            <span className="text-[10px] uppercase font-bold text-zinc-500">Filter Employee:</span>
-                            <select
-                              value={importerTechFilter}
-                              onChange={(e) => setImporterTechFilter(e.target.value)}
-                              className="bg-transparent border-none text-zinc-200 focus:outline-none cursor-pointer text-xs font-semibold"
-                            >
-                              <option value="ALL" className="bg-[#18181b]">All Employees ({parsedJobs.length} rows)</option>
-                              <option value="UNMATCHED" className="bg-[#18181b]">Unmatched Techs ({parsedJobs.filter(j => !j.matchedTechId).length} rows)</option>
-                              {Array.from(new Set(parsedJobs.map(j => j.matchedTechId).filter(Boolean))).map(id => {
-                                const t = customTechnicians.find(tech => tech.id === id);
-                                const count = parsedJobs.filter(j => j.matchedTechId === id).length;
-                                return (
-                                  <option key={id} value={id?.toString()} className="bg-[#18181b]">{t?.name || 'Unknown'} ({count} rows)</option>
-                                );
-                              })}
-                            </select>
-                          </div>
 
-                          <div className="flex items-center space-x-2 bg-[#18181b] border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-slate-300">
-                            <span className="text-[10px] uppercase font-bold text-zinc-500">Set All Employees:</span>
-                            <select
-                              value=""
-                              onChange={(e) => {
-                                handleBulkSetEmployee(e.target.value);
-                                e.target.value = "";
-                              }}
-                              className="bg-transparent border-none text-zinc-200 focus:outline-none cursor-pointer text-xs font-semibold"
-                            >
-                              <option value="" className="bg-[#18181b]">-- Choose Employee --</option>
-                              {customTechnicians.map(t => (
-                                <option key={t.id} value={t.id.toString()} className="bg-[#18181b]">{t.name}</option>
-                              ))}
-                            </select>
-                          </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          setParsedJobs([]);
+                          setImportRawText('');
+                          setImporterTechFilter('ALL');
+                          setTechAdjustments({});
+                          setPerDiem('0.00');
+                          setCarDeduction('0.00');
+                          setHotelDeduction('0.00');
+                        }}
+                        className="bg-[#1e293b] border border-[#27272a] text-slate-300 hover:bg-[#28354b] text-xs font-bold px-4 py-2 rounded-lg transition-all cursor-pointer flex items-center"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reset Importer
+                      </button>
+                    </div>
+                  </div>
 
-                          <div className="flex items-center space-x-2 bg-[#18181b] border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-slate-300">
-                            <span className="text-[10px] uppercase font-bold text-zinc-500">Set All States:</span>
-                            <select
-                              value=""
-                              onChange={(e) => {
-                                handleBulkSetState(e.target.value);
-                                e.target.value = "";
-                              }}
-                              className="bg-transparent border-none text-zinc-200 focus:outline-none cursor-pointer text-xs font-semibold"
-                            >
-                              <option value="" className="bg-[#18181b]">-- Choose State --</option>
-                              {customStates.map(s => (
-                                <option key={s.code} value={s.code} className="bg-[#18181b]">{s.name} ({s.code})</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={() => handleExportProcessedCSV(importerTechFilter === 'ALL' || importerTechFilter === 'UNMATCHED' ? null : parseInt(importerTechFilter))}
-                            className="bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-lg shadow-zinc-500/5 transition-all cursor-pointer flex items-center"
-                          >
-                            <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" />
-                            Export {importerTechFilter === 'ALL' || importerTechFilter === 'UNMATCHED' ? 'All Rows' : 'Employee Payout'} CSV
-                          </button>
-
-                          <button
-                            onClick={() => {
-                              setParsedJobs([]);
-                              setImportRawText('');
-                              setImporterTechFilter('ALL');
-                              setPerDiem('0.00');
-                              setCarDeduction('0.00');
-                              setHotelDeduction('0.00');
-                            }}
-                            className="bg-[#1e293b] border border-[#27272a] text-slate-300 hover:bg-[#28354b] text-xs font-bold px-4 py-2 rounded-lg transition-all cursor-pointer flex items-center"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reset Importer
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Preview Table */}
-                      <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl overflow-hidden shadow-inner">
-                        <div className="overflow-x-auto custom-scrollbar max-h-[400px]">
+                  {/* Main Grid: Left is parsed list, Right is selected tech summary / adjustments */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+                    
+                    {/* Left: parsed table */}
+                    <div className="lg:col-span-2 flex flex-col h-full">
+                      <div className="bg-[#18181b] border border-zinc-800/60 rounded-xl overflow-hidden shadow-inner flex-1 flex flex-col h-full min-h-[520px]">
+                        <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1 h-full max-h-[535px]">
                           <table className="w-full text-left border-collapse text-xs">
                             <thead className="bg-[#09090b] sticky top-0 z-10 border-b border-zinc-800">
                               <tr className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">
                                 <th className="py-3 px-3">Date</th>
                                 <th className="py-3 px-3">Raw Name</th>
                                 <th className="py-3 px-3">Matched Employee</th>
-                                <th className="py-3 px-3">Provider</th>
-                                <th className="py-3 px-3">Code</th>
-                                <th className="py-3 px-3">City</th>
-                                <th className="py-3 px-3">State</th>
+                                <th className="py-3 px-3">Job ID</th>
+                                <th className="py-3 px-3 text-center">Code</th>
                                 <th className="py-3 px-3 text-center">Qty</th>
-                                <th className="py-3 px-3 text-right">Gross Rate</th>
+                                <th className="py-3 px-3 text-right">Gross</th>
                                 <th className="py-3 px-3 text-center">Cut</th>
-                                <th className="py-3 px-3 text-right text-zinc-300">Co Profit</th>
-                                <th className="py-3 px-3 text-right text-zinc-300">Tech Pay</th>
+                                <th className="py-3 px-3 text-right text-zinc-300 font-bold">Tech Pay</th>
                                 <th className="py-3 px-3 text-center"></th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800/40 text-slate-300 font-medium">
                               {filteredParsedJobs.map((job) => (
                                 <tr key={job.tempId} className="hover:bg-slate-800/10 transition-colors">
-                                  
                                   {/* Date Input */}
-                                  <td className="py-2.5 px-3">
+                                  <td className="py-2.5 px-3 font-mono">
                                     <input
                                       type="text"
                                       value={job.date}
@@ -3347,7 +4334,7 @@ export default function Home() {
                                   </td>
                                   
                                   {/* Raw Name */}
-                                  <td className="py-2.5 px-3 text-zinc-400 font-semibold truncate max-w-[120px]" title={job.techNameRaw}>
+                                  <td className="py-2.5 px-3 text-zinc-400 font-semibold truncate max-w-[100px]" title={job.techNameRaw}>
                                     {job.techNameRaw}
                                   </td>
                                   
@@ -3376,7 +4363,7 @@ export default function Home() {
                                       {!job.matchedTechId && (
                                         <button
                                           onClick={() => handleQuickCreateTech(job.techNameRaw, job.stateCode)}
-                                          title="Quick Create Technician with this name"
+                                          title="Quick Create Technician"
                                           className="bg-zinc-800/30 hover:bg-zinc-800/80 text-zinc-300 font-bold px-1.5 py-0.5 rounded border border-zinc-700/60 text-[9px] shrink-0 cursor-pointer"
                                         >
                                           + Create
@@ -3385,51 +4372,22 @@ export default function Home() {
                                     </div>
                                   </td>
                                   
-                                  {/* Provider Select */}
-                                  <td className="py-2.5 px-3">
-                                    <select
-                                      value={job.provider}
-                                      onChange={(e) => handleUpdateRowValue(job.tempId, 'provider', e.target.value)}
-                                      className="bg-[#09090b] border border-[#27272a] rounded px-1 py-0.5 text-xs text-zinc-200 focus:outline-none w-20"
-                                    >
-                                      <option value="Xfinity">Xfinity</option>
-                                      <option value="Spectrum">Spectrum</option>
-                                      <option value="Cox">Cox</option>
-                                    </select>
+                                  {/* Job ID */}
+                                  <td className="py-2.5 px-3 font-mono font-bold text-zinc-400">
+                                    {job.jobRef}
                                   </td>
-                                  
+
                                   {/* Job Code */}
-                                  <td className="py-2.5 px-3">
+                                  <td className="py-2.5 px-3 text-center">
                                     <input
                                       type="text"
                                       value={job.jobCode}
                                       onChange={(e) => handleUpdateRowValue(job.tempId, 'jobCode', e.target.value)}
-                                      className="bg-[#09090b] border border-[#27272a] rounded px-1.5 py-0.5 text-xs text-zinc-200 focus:outline-none w-14 font-mono text-center"
+                                      className="bg-[#09090b] border border-[#27272a] rounded px-1.5 py-0.5 text-xs text-zinc-200 focus:outline-none w-14 font-mono text-center font-bold"
                                     />
                                   </td>
 
-                                  {/* City */}
-                                  <td className="py-2.5 px-3">
-                                    <input
-                                      type="text"
-                                      value={job.city}
-                                      onChange={(e) => handleUpdateRowValue(job.tempId, 'city', e.target.value)}
-                                      className="bg-[#09090b] border border-[#27272a] rounded px-1.5 py-0.5 text-xs text-zinc-200 focus:outline-none w-24"
-                                    />
-                                  </td>
-
-                                  {/* State */}
-                                  <td className="py-2.5 px-3">
-                                    <input
-                                      type="text"
-                                      value={job.stateCode}
-                                      onChange={(e) => handleUpdateRowValue(job.tempId, 'stateCode', e.target.value.toUpperCase())}
-                                      maxLength={2}
-                                      className="bg-[#09090b] border border-[#27272a] rounded px-1.5 py-0.5 text-xs text-zinc-200 focus:outline-none w-8 text-center font-bold font-mono"
-                                    />
-                                  </td>
-
-                                  {/* Quantity */}
+                                  {/* Qty */}
                                   <td className="py-2.5 px-3 text-center">
                                     <input
                                       type="number"
@@ -3440,7 +4398,7 @@ export default function Home() {
                                     />
                                   </td>
 
-                                  {/* Gross Price */}
+                                  {/* Gross Amount */}
                                   <td className="py-2.5 px-3 text-right">
                                     <div className="relative inline-block">
                                       <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-500 font-mono">$</span>
@@ -3449,250 +4407,240 @@ export default function Home() {
                                         value={job.grossAmount}
                                         step="0.01"
                                         onChange={(e) => handleUpdateRowValue(job.tempId, 'grossAmount', parseFloat(e.target.value) || 0)}
-                                        className="bg-[#09090b] border border-[#27272a] rounded pl-4 pr-1.5 py-0.5 text-xs text-zinc-200 focus:outline-none w-18 text-right font-mono"
+                                        className="bg-[#09090b] border border-[#27272a] rounded pl-4 pr-1.5 py-0.5 text-xs text-zinc-200 focus:outline-none w-16 text-right font-mono"
                                       />
                                     </div>
                                   </td>
 
-                                  {/* Company Cut */}
-                                  <td className="py-2.5 px-3 text-center">
-                                    {job.matchedTechId ? (
-                                      (() => {
-                                        const t = customTechnicians.find(tech => tech.id === job.matchedTechId);
-                                        return t ? (
-                                          <span className="text-[10px] bg-slate-800 text-slate-300 font-bold px-1.5 py-0.5 rounded border border-zinc-700">
-                                            {t.payoutType === 'PERCENTAGE' ? `${t.payoutValue}%` : `$${t.payoutValue}`}
-                                          </span>
-                                        ) : null;
-                                      })()
-                                    ) : (
-                                      <span className="text-[10px] bg-red-500/10 text-red-400 font-bold px-1.5 py-0.5 rounded border border-red-500/20">
-                                        8%
-                                      </span>
-                                    )}
-                                  </td>
-
-                                  {/* Company Profit */}
-                                  <td className="py-2.5 px-3 text-right font-mono font-bold text-zinc-300">
-                                    ${job.companyProfit.toFixed(2)}
+                                  {/* Company Cut % */}
+                                  <td className="py-2.5 px-3 text-center font-mono font-bold text-zinc-400">
+                                    {job.companyCutPct.toFixed(1)}%
                                   </td>
 
                                   {/* Tech Payout */}
-                                  <td className="py-2.5 px-3 text-right font-mono font-bold text-zinc-300">
+                                  <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-400">
                                     ${job.techPayout.toFixed(2)}
                                   </td>
 
-                                  {/* Remove row */}
+                                  {/* Delete */}
                                   <td className="py-2.5 px-3 text-center">
                                     <button
                                       onClick={() => setParsedJobs(prev => prev.filter(p => p.tempId !== job.tempId))}
-                                      className="text-red-500 hover:text-red-400 cursor-pointer p-1"
+                                      className="text-red-500 hover:text-red-400 cursor-pointer p-1 bg-transparent border-0"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                   </td>
-
                                 </tr>
                               ))}
                             </tbody>
                           </table>
                         </div>
                       </div>
+                    </div>
 
-                      {/* Adjustments and Totals */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Right: Selected Tech Invoice calculations / Adjustments */}
+                    <div className="flex flex-col h-full">
+                      {(() => {
+                        const selectedTechId = importerTechFilter === 'ALL' || importerTechFilter === 'UNMATCHED' ? null : parseInt(importerTechFilter);
                         
-                        {/* Adjustments Panel */}
-                        {importerTechFilter !== 'ALL' && importerTechFilter !== 'UNMATCHED' ? (
-                          <div className="bg-[#09090b] rounded-xl p-5 border border-[#27272a] space-y-4">
-                            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider border-b border-zinc-800 pb-2">
-                              Tech Adjustments (Deductions / Per Diem)
-                            </h4>
-                            
-                            <div className="grid grid-cols-3 gap-4">
-                              <div className="space-y-1">
-                                <label className="text-[10px] uppercase font-bold text-zinc-500">Per Diem (+)</label>
-                                <div className="relative">
-                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-600 font-mono">$</span>
-                                  <input
-                                    type="number"
-                                    value={perDiem}
-                                    onChange={(e) => setPerDiem(e.target.value)}
-                                    className="w-full bg-[#18181b] border border-zinc-800 rounded pl-5 pr-2 py-1 text-xs text-zinc-200 focus:outline-none font-mono"
-                                  />
-                                </div>
-                              </div>
-                              
-                              <div className="space-y-1">
-                                <label className="text-[10px] uppercase font-bold text-zinc-500">Car Ded. (-)</label>
-                                <div className="relative">
-                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-600 font-mono">$</span>
-                                  <input
-                                    type="number"
-                                    value={carDeduction}
-                                    onChange={(e) => setCarDeduction(e.target.value)}
-                                    className="w-full bg-[#18181b] border border-zinc-800 rounded pl-5 pr-2 py-1 text-xs text-zinc-200 focus:outline-none font-mono"
-                                  />
-                                </div>
-                              </div>
+                        if (!selectedTechId) {
+                          return (
+                            <div className="bg-[#09090b] rounded-xl p-5 border border-zinc-800 flex flex-col justify-center items-center text-center text-zinc-500 text-xs h-full min-h-[250px]">
+                              <Info className="w-6 h-6 mb-2 text-zinc-600 animate-pulse" />
+                              <p className="font-semibold text-zinc-400">Manage Technician Adjustments</p>
+                              <p className="text-[11px] text-zinc-600 mt-1 max-w-[200px]">
+                                Select a technician in the dropdown to set Per Diem, deductions, and preview their payout statement.
+                              </p>
+                            </div>
+                          );
+                        }
 
-                              <div className="space-y-1">
-                                <label className="text-[10px] uppercase font-bold text-zinc-500">Hotel Ded. (-)</label>
-                                <div className="relative">
-                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-600 font-mono">$</span>
-                                  <input
-                                    type="number"
-                                    value={hotelDeduction}
-                                    onChange={(e) => setHotelDeduction(e.target.value)}
-                                    className="w-full bg-[#18181b] border border-zinc-800 rounded pl-5 pr-2 py-1 text-xs text-zinc-200 focus:outline-none font-mono"
-                                  />
+                        const tech = customTechnicians.find(t => t.id === selectedTechId);
+                        const techJobs = parsedJobs.filter(j => j.matchedTechId === selectedTechId);
+                        const uniqueDays = new Set(techJobs.map(j => j.date)).size;
+                        
+                        const totalJobsGross = techJobs.reduce((acc, j) => acc + (j.grossAmount * j.quantity), 0);
+                        const baseJobsProfit = techJobs.reduce((acc, j) => acc + j.companyProfit, 0);
+                        const totalTechSub = techJobs.reduce((acc, j) => acc + j.techPayout, 0);
+                        
+                        const companyPDVal = parseFloat(companyPerDiem) || 0;
+                        const techPDVal = parseFloat(perDiem) || 0;
+                        const perDiemMargin = companyPDVal - techPDVal;
+
+                        const techCarVal = parseFloat(carDeduction) || 0;
+                        const companyToolsVal = parseFloat(companyToolsCost) || 0;
+                        const toolsMargin = techCarVal - companyToolsVal;
+
+                        const hotelVal = parseFloat(hotelDeduction) || 0;
+
+                        const totalInvoiceRevenue = totalJobsGross + companyPDVal;
+                        const totalNetCompanyProfit = baseJobsProfit + perDiemMargin + toolsMargin;
+                        const netTechPayout = totalTechSub + techPDVal - techCarVal - hotelVal;
+
+                        return (
+                          <div className="bg-[#09090b] rounded-xl p-5 border border-zinc-800 space-y-4 animate-fadeIn">
+                            <div>
+                              <span className="text-[9px] uppercase font-bold text-zinc-500 block">Tech Adjustments & Margins</span>
+                              <h4 className="text-sm font-bold text-slate-100 truncate">{tech?.name}</h4>
+                              <p className="text-[10px] text-zinc-500 font-mono mt-0.5">{uniqueDays} work day{uniqueDays !== 1 ? 's' : ''} detected</p>
+                            </div>
+
+                            {/* Per Diem Section */}
+                            <div className="bg-[#18181b]/60 border border-zinc-800/60 rounded-lg p-3 space-y-2">
+                              <div className="flex items-center justify-between text-[10px] uppercase font-bold text-zinc-400">
+                                <span>Per Diem Breakdown</span>
+                                <span className={`font-mono ${perDiemMargin >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                  Margin: {perDiemMargin >= 0 ? '+' : ''}${perDiemMargin.toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                  <label className="text-[9px] uppercase font-semibold text-zinc-500 block">Company Recv (+)</label>
+                                  <div className="relative mt-0.5">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-600 font-mono">$</span>
+                                    <input
+                                      type="number"
+                                      value={companyPerDiem}
+                                      onChange={(e) => setCompanyPerDiem(e.target.value)}
+                                      className="w-full bg-[#09090b] border border-zinc-800 rounded pl-5 pr-1.5 py-1 text-xs text-zinc-200 focus:outline-none font-mono"
+                                      placeholder="0.00"
+                                    />
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="text-[9px] uppercase font-semibold text-zinc-500 block">Tech Paid (+)</label>
+                                  <div className="relative mt-0.5">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-600 font-mono">$</span>
+                                    <input
+                                      type="number"
+                                      value={perDiem}
+                                      onChange={(e) => setPerDiem(e.target.value)}
+                                      className="w-full bg-[#09090b] border border-zinc-800 rounded pl-5 pr-1.5 py-1 text-xs text-zinc-200 focus:outline-none font-mono"
+                                      placeholder="0.00"
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                            
-                            <p className="text-[10px] text-zinc-500 leading-relaxed italic">
-                              * Deductions (Car, Hotel) will be subtracted from the employee's payout.
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="bg-[#09090b] rounded-xl p-5 border border-[#27272a] flex flex-col justify-center items-center text-center text-zinc-500 text-xs">
-                            <Info className="w-5 h-5 mb-2 text-slate-600" />
-                            <p>Select a specific technician from the "Filter Employee" dropdown above to manage adjustments (Per Diem, Car, Hotel).</p>
-                          </div>
-                        )}
 
-                        {/* Totals Panel */}
-                        <div className="bg-[#09090b] rounded-xl p-5 border border-[#27272a] space-y-4">
-                          <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider border-b border-zinc-800 pb-2">
-                            Summary calculation
-                          </h4>
-                          
-                          {(() => {
-                            const selectedTechId = importerTechFilter === 'ALL' || importerTechFilter === 'UNMATCHED' ? null : parseInt(importerTechFilter);
-                            const activeJobs = selectedTechId 
-                              ? parsedJobs.filter(j => j.matchedTechId === selectedTechId)
-                              : parsedJobs;
-                              
-                            const totalGross = activeJobs.reduce((acc, j) => acc + (j.grossAmount * j.quantity), 0);
-                            const totalProfit = activeJobs.reduce((acc, j) => acc + j.companyProfit, 0);
-                            const totalTechSub = activeJobs.reduce((acc, j) => acc + j.techPayout, 0);
-                            
-                            const pdVal = selectedTechId ? (parseFloat(perDiem) || 0) : 0;
-                            const carVal = selectedTechId ? (parseFloat(carDeduction) || 0) : 0;
-                            const hotelVal = selectedTechId ? (parseFloat(hotelDeduction) || 0) : 0;
-                            const netPayout = totalTechSub + pdVal + carVal + hotelVal;
-
-                            return (
-                              <div className="space-y-2.5 text-xs">
-                                <div className="flex justify-between">
-                                  <span className="text-zinc-400">Total Invoice Rev (Gross):</span>
-                                  <span className="font-bold text-zinc-200 font-mono">${totalGross.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-zinc-400">Total Company Profit (Cut):</span>
-                                  <span className="font-bold text-zinc-300 font-mono">${totalProfit.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between border-b border-zinc-800 pb-2">
-                                  <span className="text-zinc-400">Tech Payout Subtotal:</span>
-                                  <span className="font-bold text-zinc-300 font-mono">${totalTechSub.toFixed(2)}</span>
-                                </div>
-                                
-                                {selectedTechId && (
-                                  <>
-                                    <div className="flex justify-between text-[11px] text-zinc-400">
-                                      <span>Adjustments (Per Diem + Car + Hotel):</span>
-                                      <span className={`font-semibold font-mono ${(pdVal + carVal + hotelVal) >= 0 ? 'text-zinc-200' : 'text-red-400'}`}>
-                                        ${(pdVal + carVal + hotelVal).toFixed(2)}
-                                      </span>
-                                    </div>
-                                    <div className="flex justify-between border-t border-zinc-800 pt-2 text-sm">
-                                      <span className="font-extrabold text-slate-100">Net Employee Payout:</span>
-                                      <span className="font-black text-zinc-100 font-mono">${netPayout.toFixed(2)}</span>
-                                    </div>
-                                  </>
-                                )}
+                            {/* Tools & Car Section */}
+                            <div className="bg-[#18181b]/60 border border-zinc-800/60 rounded-lg p-3 space-y-2">
+                              <div className="flex items-center justify-between text-[10px] uppercase font-bold text-zinc-400">
+                                <span>Car & Tools Breakdown</span>
+                                <span className={`font-mono ${toolsMargin >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                  Margin: {toolsMargin >= 0 ? '+' : ''}${toolsMargin.toFixed(2)}
+                                </span>
                               </div>
-                            );
-                          })()}
-                        </div>
-                      </div>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                  <label className="text-[9px] uppercase font-semibold text-zinc-500 block">Tech Ded. (-)</label>
+                                  <div className="relative mt-0.5">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-600 font-mono">$</span>
+                                    <input
+                                      type="number"
+                                      value={carDeduction}
+                                      onChange={(e) => setCarDeduction(e.target.value)}
+                                      className="w-full bg-[#09090b] border border-zinc-800 rounded pl-5 pr-1.5 py-1 text-xs text-zinc-200 focus:outline-none font-mono"
+                                      placeholder="0.00"
+                                    />
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="text-[9px] uppercase font-semibold text-zinc-500 block">Company Cost (-)</label>
+                                  <div className="relative mt-0.5">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-600 font-mono">$</span>
+                                    <input
+                                      type="number"
+                                      value={companyToolsCost}
+                                      onChange={(e) => setCompanyToolsCost(e.target.value)}
+                                      className="w-full bg-[#09090b] border border-zinc-800 rounded pl-5 pr-1.5 py-1 text-xs text-zinc-200 focus:outline-none font-mono"
+                                      placeholder="0.00"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
 
-                      {/* Commit bar */}
-                      <div className="flex justify-between items-center pt-4 border-t border-zinc-800">
-                        <p className="text-xs text-zinc-500">
-                          Verify employee matching. Clicking commit imports all rows into system database.
-                        </p>
-                        
-                        <button
-                          onClick={handleCommitParsedJobs}
-                          className="bg-zinc-100 text-zinc-950 hover:bg-zinc-200 font-extrabold text-xs px-6 py-2.5 rounded-lg shadow-lg shadow-zinc-500/20 transition-all cursor-pointer"
-                        >
-                          Approve & Commit to Ledger
-                        </button>
-                      </div>
+                            {/* Hotel Deduction */}
+                            <div className="space-y-1">
+                              <label className="text-[9px] uppercase font-bold text-zinc-500 block">Hotel Deduction (-)</label>
+                              <div className="relative">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-600 font-mono">$</span>
+                                <input
+                                  type="number"
+                                  value={hotelDeduction}
+                                  onChange={(e) => setHotelDeduction(e.target.value)}
+                                  className="w-full bg-[#18181b] border border-zinc-800 rounded pl-5 pr-1.5 py-1 text-xs text-zinc-200 focus:outline-none font-mono"
+                                  placeholder="0.00"
+                                />
+                              </div>
+                            </div>
 
+                            {/* Summary Invoice calculation */}
+                            <div className="border-t border-zinc-800 pt-3 space-y-1.5 text-[11px]">
+                              <div className="flex justify-between">
+                                <span className="text-zinc-500">Gross Invoice Rev:</span>
+                                <span className="font-bold text-zinc-200 font-mono">${totalInvoiceRevenue.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between text-zinc-400">
+                                <span>Jobs Base Profit:</span>
+                                <span className="font-semibold font-mono">${baseJobsProfit.toFixed(2)}</span>
+                              </div>
+                              {perDiemMargin !== 0 && (
+                                <div className="flex justify-between text-zinc-400">
+                                  <span>Per Diem Profit Margin:</span>
+                                  <span className={`font-semibold font-mono ${perDiemMargin >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                    {perDiemMargin >= 0 ? '+' : ''}${perDiemMargin.toFixed(2)}
+                                  </span>
+                                </div>
+                              )}
+                              {toolsMargin !== 0 && (
+                                <div className="flex justify-between text-zinc-400">
+                                  <span>Tools Profit Margin:</span>
+                                  <span className={`font-semibold font-mono ${toolsMargin >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                    {toolsMargin >= 0 ? '+' : ''}${toolsMargin.toFixed(2)}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="flex justify-between border-t border-zinc-800/60 pt-1.5 pb-1">
+                                <span className="font-bold text-slate-200">Total Net Company Profit:</span>
+                                <span className="font-black text-amber-400 font-mono text-sm">${totalNetCompanyProfit.toFixed(2)}</span>
+                              </div>
+
+                              <div className="flex justify-between border-t border-zinc-800/60 pt-1.5 text-zinc-400">
+                                <span>Payout Subtotal:</span>
+                                <span className="font-bold text-zinc-300 font-mono">${totalTechSub.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between text-zinc-400">
+                                <span>Tech Adjustments (Per Diem - Ded):</span>
+                                <span className={`font-semibold font-mono ${(techPDVal - techCarVal - hotelVal) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  ${(techPDVal - techCarVal - hotelVal).toFixed(2)}
+                                </span>
+                              </div>
+
+                              <div className="flex justify-between border-t border-zinc-800 pt-2 text-xs">
+                                <span className="font-extrabold text-slate-100">Net Tech Payout:</span>
+                                <span className="font-black text-emerald-400 font-mono text-sm">${netTechPayout.toFixed(2)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
-                  )}
-                </div>
-              ) : (
-                /* Dispatched Jobs Log Tab */
-                <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <p className="text-xs text-zinc-400">
-                      Logged cable/fiber jobs, contractor payouts, and retained company profit.
-                    </p>
-                    <button
-                      onClick={() => handleAddJobClick()}
-                      className="bg-zinc-100 text-zinc-950 text-xs font-bold px-4 py-2 rounded-md hover:bg-zinc-200 shadow-lg shadow-zinc-500/5 transition-all flex items-center shrink-0 cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5 mr-1" /> Record New Job
-                    </button>
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="border-b border-zinc-800 text-zinc-400 font-bold uppercase tracking-wider text-[10px]">
-                          <th className="py-3 px-4">Job ID</th>
-                          <th className="py-3 px-4">Date</th>
-                          <th className="py-3 px-4">Technician</th>
-                          <th className="py-3 px-4">Provider</th>
-                          <th className="py-3 px-4">Job Code</th>
-                          <th className="py-3 px-4">City</th>
-                          <th className="py-3 px-4 text-right">Invoice Rev</th>
-                          <th className="py-3 px-4 text-right">Tech Payout</th>
-                          <th className="py-3 px-4 text-right text-zinc-300">Net Profit</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/40 text-slate-300">
-                        {filteredJobLogs.map((job) => (
-                          <tr key={job.id} className="hover:bg-slate-800/20 transition-colors">
-                            <td className="py-3 px-4 font-mono text-zinc-500">#{job.id}</td>
-                            <td className="py-3 px-4 font-mono">{job.date}</td>
-                            <td className="py-3 px-4 font-bold text-zinc-200">{job.technicianName}</td>
-                            <td className="py-3 px-4">
-                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
-                                job.provider === 'Xfinity' 
-                                  ? 'bg-red-500/10 text-red-400 border border-red-500/20' 
-                                  : 'bg-zinc-800/30 text-zinc-300 border border-blue-500/20'
-                              }`}>
-                                {job.provider}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 font-mono font-semibold">{job.ratePlanCode}</td>
-                            <td className="py-3 px-4">
-                              <span className="flex items-center text-zinc-400">
-                                <MapPin className="w-3.5 h-3.5 text-slate-600 mr-1 shrink-0" />
-                                {job.cityName}, {job.stateCode}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-right font-mono font-semibold">${job.companyRevenue.toFixed(2)}</td>
-                            <td className="py-3 px-4 text-right font-mono text-zinc-300">${job.techPayout.toFixed(2)}</td>
-                            <td className="py-3 px-4 text-right font-mono font-bold text-zinc-300">${job.companyProfit.toFixed(2)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  {/* Commit Section */}
+                  <div className="flex justify-between items-center pt-4 border-t border-zinc-800 bg-[#09090b]/10">
+                    <p className="text-xs text-zinc-500">
+                      Please confirm all technician mappings. Committing generates payroll statement files.
+                    </p>
+                    <button
+                      onClick={handleCommitParsedJobs}
+                      className="bg-zinc-100 text-zinc-950 hover:bg-zinc-200 font-extrabold text-xs px-6 py-3 rounded-lg shadow-lg shadow-zinc-500/20 transition-all cursor-pointer border-0"
+                    >
+                      Approve & Generate Statements
+                    </button>
                   </div>
                 </div>
               )}
@@ -3760,22 +4708,6 @@ export default function Home() {
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5 mr-1" /> Bulk Import
                   </button>
-
-                  {/* Bulk Edit State Rates */}
-                  <button 
-                    onClick={() => setIsBulkStateEditOpen(true)}
-                    className="bg-zinc-800 text-white text-xs font-bold px-3.5 py-2 rounded-md hover:bg-zinc-700 shadow-lg shadow-zinc-500/5 transition-all flex items-center font-semibold cursor-pointer"
-                    title="Bulk edit all rate codes for the active state"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 mr-1" /> Bulk Edit State Rates
-                  </button>
-
-                  <button 
-                    onClick={handleAddRateClick}
-                    className="bg-zinc-100 text-zinc-950 text-xs font-bold px-3.5 py-2 rounded-md hover:bg-zinc-200 shadow-lg shadow-zinc-500/5 transition-all flex items-center font-semibold"
-                  >
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Add Rate Plan
-                  </button>
                 </div>
               </div>
 
@@ -3789,23 +4721,6 @@ export default function Home() {
                     <p className="text-[11px] text-zinc-500 mt-0.5">
                       Aggregated averages and payout metrics for currently filtered codes.
                     </p>
-                  </div>
-
-                  <div className="flex items-center space-x-3 shrink-0">
-                    <button 
-                      onClick={() => handleExportPDF('company')}
-                      className="bg-[#27272a] text-slate-300 hover:text-white border border-[#27272a] text-xs font-semibold px-3 py-1.5 rounded hover:bg-slate-800 transition-all flex items-center shadow-md shadow-slate-900/10 cursor-pointer"
-                      title="Download full grid including company rates and margins"
-                    >
-                      <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5 text-zinc-300" /> Company Rates (PDF)
-                    </button>
-                    <button 
-                      onClick={() => handleExportPDF('employee')}
-                      className="bg-[#10b981]/10 text-zinc-300 hover:text-white border border-zinc-800/50 text-xs font-semibold px-3 py-1.5 rounded hover:bg-zinc-800 transition-all flex items-center shadow-md shadow-zinc-500/5 cursor-pointer"
-                      title="Download clean contractor rate sheet containing only payout rates"
-                    >
-                      <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5 text-zinc-300" /> Employee Rates (PDF)
-                    </button>
                   </div>
                 </div>
 
@@ -4090,6 +5005,7 @@ export default function Home() {
                           <tr className="border-b border-zinc-800 text-zinc-400 font-bold uppercase tracking-wider text-[10px] bg-[#09090b]/20">
                             <th className="py-3 px-5">Technician</th>
                             <th className="py-3 px-5">Status</th>
+                            <th className="py-3 px-5">Jobs Today</th>
                             <th className="py-3 px-5">Work Type</th>
                             <th className="py-3 px-5">Base State</th>
                             <th className="py-3 px-5">Assigned Vehicle</th>
@@ -4109,7 +5025,7 @@ export default function Home() {
                             if (filtered.length === 0) {
                               return (
                                 <tr>
-                                  <td colSpan={7} className="py-12 text-center text-zinc-500 italic">
+                                  <td colSpan={8} className="py-12 text-center text-zinc-500 italic">
                                     No field technicians match the search parameters.
                                   </td>
                                 </tr>
@@ -4138,6 +5054,12 @@ export default function Home() {
                                             {tech.phone}
                                           </a>
                                         </p>
+                                        {tech.username && (
+                                          <div className="flex items-center space-x-1.5 text-[9.5px] mt-0.5 font-medium">
+                                            <span className="bg-[#09090b] text-zinc-400 border border-zinc-800 px-1 py-0.2 rounded">User: {tech.username}</span>
+                                            <span className="bg-[#09090b] text-zinc-400 border border-zinc-800 px-1 py-0.2 rounded">Pass: {tech.password || '—'}</span>
+                                          </div>
+                                        )}
                                         {tech.notes && tech.notes.trim() && (
                                           <p className="text-[9.5px] text-amber-400/80 italic mt-0.5 max-w-[260px] truncate">
                                             📝 {tech.notes}
@@ -4156,6 +5078,17 @@ export default function Home() {
                                     }`}>
                                       {tech.status}
                                     </span>
+                                  </td>
+                                  <td className="py-3.5 px-5">
+                                    {tech.jobsToday && tech.jobsToday > 0 ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+                                        ⚡ {tech.jobsToday} today
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-[#09090b] text-zinc-500 border border-zinc-800 font-mono">
+                                        0 today
+                                      </span>
+                                    )}
                                   </td>
                                   <td className="py-3.5 px-5 font-semibold">
                                     <span className={`px-2 py-0.5 rounded text-[9.5px] border ${
@@ -4581,341 +5514,873 @@ export default function Home() {
             </div>
           )}
 
-          {/* Section 5: Task Manager Panel */}
-          {activeSection === 'todo' && (
-            <div className="space-y-6 animate-fadeIn">
-              {/* Header Title Block */}
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-                <div>
-                  <h1 className="text-xl font-bold text-slate-100 tracking-wide">
-                    Task Manager
-                  </h1>
-                  <p className="text-xs text-zinc-400 mt-1">
-                    Manage admin tasks, schedule milestones on the calendar, and track team productivity.
-                  </p>
-                </div>
-              </div>
 
-              {/* Stats Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-                {/* Total Tasks */}
-                <div className="bg-[#18181b] rounded-xl p-5 shadow-sm border border-zinc-800/40">
-                  <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Total Tasks</span>
-                  <h3 className="text-2xl font-black text-slate-100 font-mono tracking-tight mt-1">
-                    {todoStats.total}
-                  </h3>
-                </div>
-                {/* Pending Tasks */}
-                <div className="bg-[#18181b] rounded-xl p-5 shadow-sm border border-zinc-800/40">
-                  <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider text-rose-400">Pending Tasks</span>
-                  <h3 className="text-2xl font-black text-slate-100 font-mono tracking-tight mt-1">
-                    {todoStats.pending}
-                  </h3>
-                </div>
-                {/* Completed Tasks */}
-                <div className="bg-[#18181b] rounded-xl p-5 shadow-sm border border-zinc-800/40">
-                  <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider text-emerald-400">Completed Tasks</span>
-                  <h3 className="text-2xl font-black text-slate-100 font-mono tracking-tight mt-1">
-                    {todoStats.completed}
-                  </h3>
-                </div>
-                {/* Completion Rate */}
-                <div className="bg-[#18181b] rounded-xl p-5 shadow-sm border border-zinc-800/40">
-                  <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider text-blue-400">Completion Rate</span>
-                  <h3 className="text-2xl font-black text-slate-100 font-mono tracking-tight mt-1">
-                    {todoStats.completionRate.toFixed(0)}%
-                  </h3>
-                </div>
-              </div>
 
-              {/* Task Creator Form & Filter Panel */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Task Creator */}
-                <div className="lg:col-span-1 bg-[#18181b] rounded-xl p-6 border border-zinc-800/40 space-y-4">
-                  <h3 className="text-sm font-bold text-slate-100 tracking-wide border-b border-zinc-800 pb-3 flex items-center gap-2">
-                    <Plus className="w-4 h-4 text-blue-400" /> Create New Task
-                  </h3>
-                  
-                  <form onSubmit={handleCreateTask} className="space-y-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase font-bold text-zinc-400">Task Title *</label>
-                      <input 
-                        type="text"
-                        required
-                        placeholder="e.g. Audit Spectrum CSV imports"
-                        value={taskFormText}
-                        onChange={(e) => setTaskFormText(e.target.value)}
-                        className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-[#3b82f6] placeholder-slate-600 font-semibold"
-                      />
-                    </div>
+          {/* Section 6: Recruiting & HR Panel */}
+          {activeSection === 'recruiting' && (() => {
+            // Recruiter Metrics calculations
+            const totalCand = customCandidates.length;
+            const pipelineNew = customCandidates.filter(c => c.status === 'NEW').length;
+            const pipelineRates = customCandidates.filter(c => c.status === 'RATES_SENT').length;
+            const pipelineDocs = customCandidates.filter(c => c.status === 'DOCS_REQUESTED').length;
+            const pipelineSign = customCandidates.filter(c => c.status === 'SIGNING_SENT').length;
+            const pipelineHired = customCandidates.filter(c => c.status === 'HIRED').length;
+            
+            const totalNeeded = customStates.reduce((acc, s) => acc + (s.requiredTechs || 0), 0);
+            const activeStaff = customTechnicians.filter(t => t.status === 'ACTIVE').length;
+            const staffingGap = Math.max(0, totalNeeded - activeStaff);
 
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase font-bold text-zinc-400">Task Description</label>
-                      <textarea
-                        rows={3}
-                        placeholder="Provide details about this task..."
-                        value={taskFormDesc}
-                        onChange={(e) => setTaskFormDesc(e.target.value)}
-                        className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-[#3b82f6] placeholder-slate-600 font-medium resize-none"
-                      />
-                    </div>
+            // Filter candidates registered for selected state
+            const stateCandidates = selectedState 
+              ? customCandidates.filter(c => c.stateCode === selectedState.code)
+              : [];
 
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase font-bold text-zinc-400">Target Date *</label>
-                      <input
-                        type="date"
-                        required
-                        value={taskFormDate}
-                        onChange={(e) => setTaskFormDate(e.target.value)}
-                        className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-[#3b82f6] font-mono font-bold"
-                      />
-                    </div>
+return (
+              <div className={`space-y-6 animate-fadeIn transition-colors duration-200 p-1 rounded-2xl ${
+                hrTheme === 'light' ? 'bg-slate-50 text-slate-800' : ''
+              }`}>
+                {/* Header Title Block with Theme Toggle */}
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+                  <div>
+                    <h1 className={`text-xl font-extrabold tracking-wide flex items-center gap-2 font-sans ${
+                      hrTheme === 'light' ? 'text-slate-900' : 'text-white'
+                    }`}>
+                      <UserPlus className={`w-5 h-5 ${hrTheme === 'light' ? 'text-blue-600' : 'text-teal-400'}`} />
+                      Recruiting & HR Module
+                    </h1>
+                    <p className={`text-xs mt-1 ${hrTheme === 'light' ? 'text-slate-500 font-medium' : 'text-zinc-400'}`}>
+                      Onboard new technicians, track document signings, and check regional pay/vacancy sheets.
+                    </p>
+                  </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase font-bold text-zinc-400">Priority Level *</label>
-                      <select
-                        value={taskFormPriority}
-                        onChange={(e) => setTaskFormPriority(e.target.value as 'HIGH' | 'MEDIUM' | 'LOW')}
-                        className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-[#3b82f6] font-semibold cursor-pointer"
+                  <div className="flex items-center space-x-3">
+                    {/* Google Theme Switcher Toggle */}
+                    <div className={`flex items-center p-1 rounded-xl border shadow-xs ${
+                      hrTheme === 'light' ? 'bg-white border-slate-200' : 'bg-[#09090b] border-zinc-800'
+                    }`}>
+                      <button
+                        type="button"
+                        onClick={() => setHrTheme('light')}
+                        className={`flex items-center space-x-1 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          hrTheme === 'light'
+                            ? 'bg-blue-600 text-white shadow-sm font-extrabold'
+                            : 'text-slate-500 hover:text-slate-900'
+                        }`}
                       >
-                        <option value="LOW">Низкий (Low)</option>
-                        <option value="MEDIUM">Средний (Medium)</option>
-                        <option value="HIGH">Важно (High)</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase font-bold text-zinc-400">Creator Admin</label>
-                      <input
-                        type="text"
-                        disabled
-                        value={currentUser || 'admin'}
-                        className="w-full bg-[#09090b]/50 border border-transparent rounded-md px-3 py-2 text-xs text-zinc-500 font-semibold cursor-not-allowed"
-                      />
+                        <span>☀️ Google White-Blue</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHrTheme('dark')}
+                        className={`flex items-center space-x-1 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          hrTheme === 'dark'
+                            ? 'bg-zinc-800 text-white shadow-sm font-extrabold'
+                            : 'text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        <span>🌙 Dark Mode</span>
+                      </button>
                     </div>
 
                     <button
-                      type="submit"
-                      className="w-full bg-zinc-100 text-zinc-950 text-xs font-bold py-2.5 rounded-md hover:bg-zinc-200 shadow-md shadow-zinc-500/5 transition-all cursor-pointer font-bold"
+                      onClick={handleAddCandidateClick}
+                      className={`flex items-center space-x-2 text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer ${
+                        hrTheme === 'light'
+                          ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20'
+                          : 'bg-white hover:bg-zinc-200 text-zinc-950'
+                      }`}
                     >
-                      Add Task
+                      <Plus className="w-4 h-4" />
+                      <span>Register Candidate</span>
                     </button>
-                  </form>
+                  </div>
                 </div>
 
-                {/* Filter and Search Panel */}
-                <div className="lg:col-span-2 bg-[#18181b] rounded-xl p-6 border border-zinc-800/40 space-y-4">
-                  <h3 className="text-sm font-bold text-slate-100 tracking-wide border-b border-zinc-800 pb-3 flex items-center gap-2">
-                    <Search className="w-4 h-4 text-indigo-400" /> Filter &amp; Search Tasks
-                  </h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase font-bold text-zinc-400">Search Text</label>
-                      <input
-                        type="text"
-                        placeholder="Search description..."
-                        value={todoSearchQuery}
-                        onChange={(e) => setTodoSearchQuery(e.target.value)}
-                        className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-blue-500 placeholder-zinc-700"
-                      />
+                {/* Recruiting Metrics Bar */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className={`rounded-xl p-4 border flex items-center justify-between shadow-sm ${
+                    hrTheme === 'light' ? 'bg-white border-slate-200' : 'bg-[#18181b] border-zinc-800/60'
+                  }`}>
+                    <div>
+                      <span className={`text-[10px] uppercase font-bold tracking-wider block ${
+                        hrTheme === 'light' ? 'text-slate-500' : 'text-zinc-400'
+                      }`}>Total Candidates</span>
+                      <h3 className={`text-2xl font-extrabold mt-0.5 ${
+                        hrTheme === 'light' ? 'text-slate-900' : 'text-white'
+                      }`}>{totalCand}</h3>
+                    </div>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${
+                      hrTheme === 'light' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-[#09090b] text-zinc-400 border-zinc-800'
+                    }`}>
+                      <Users className="w-4 h-4" />
+                    </div>
+                  </div>
+
+                  <div className={`rounded-xl p-4 border flex items-center justify-between shadow-sm ${
+                    hrTheme === 'light' ? 'bg-white border-slate-200' : 'bg-[#18181b] border-zinc-800/60'
+                  }`}>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-blue-400 tracking-wider block">New Leads</span>
+                      <h3 className="text-2xl font-extrabold text-blue-400 mt-0.5">{pipelineNew}</h3>
+                    </div>
+                    <div className="w-8 h-8 rounded-lg bg-blue-950/30 text-blue-400 flex items-center justify-center border border-blue-800/40">
+                      <UserPlus className="w-4 h-4" />
+                    </div>
+                  </div>
+
+                  <div className={`rounded-xl p-4 border flex items-center justify-between shadow-sm ${
+                    hrTheme === 'light' ? 'bg-white border-slate-200' : 'bg-[#18181b] border-zinc-800/60'
+                  }`}>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-indigo-300 tracking-wider block">Docs & Signing</span>
+                      <h3 className="text-2xl font-extrabold text-indigo-300 mt-0.5">{pipelineDocs + pipelineSign}</h3>
+                    </div>
+                    <div className="w-8 h-8 rounded-lg bg-indigo-950/30 text-indigo-300 flex items-center justify-center border border-indigo-800/40">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                  </div>
+
+                  <div className={`rounded-xl p-4 border flex items-center justify-between shadow-sm ${
+                    hrTheme === 'light' ? 'bg-white border-slate-200' : 'bg-[#18181b] border-zinc-800/60'
+                  }`}>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-emerald-300 tracking-wider block">Onboarded / Hired</span>
+                      <h3 className="text-2xl font-extrabold text-emerald-300 mt-0.5">{pipelineHired}</h3>
+                    </div>
+                    <div className="w-8 h-8 rounded-lg bg-emerald-950/30 text-emerald-300 flex items-center justify-center border border-emerald-800/40">
+                      <UserCheck className="w-4 h-4" />
+                    </div>
+                  </div>
+
+                  <div className={`rounded-xl p-4 border flex items-center justify-between shadow-sm ${
+                    hrTheme === 'light' ? 'bg-white border-slate-200' : 'bg-[#18181b] border-zinc-800/60'
+                  }`}>
+                    <div>
+                      <span className={`text-[10px] uppercase font-bold tracking-wider block ${
+                        hrTheme === 'light' ? 'text-slate-500' : 'text-zinc-400'
+                      }`}>Staffing Gap</span>
+                      <h3 className={`text-2xl font-extrabold mt-0.5 ${
+                        hrTheme === 'light' ? 'text-slate-800' : 'text-zinc-200'
+                      }`}>{staffingGap} Techs</h3>
+                    </div>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${
+                      hrTheme === 'light' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-[#09090b] text-zinc-400 border-zinc-800'
+                    }`}>
+                      <Briefcase className="w-4 h-4" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Main Candidates Toolbar: Title & View Mode Switcher */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/50 dark:border-zinc-800 pb-3">
+                  <div>
+                    <h3 className={`text-base font-extrabold flex items-center gap-2 font-sans ${
+                      hrTheme === 'light' ? 'text-slate-900' : 'text-white'
+                    }`}>
+                      <span>Candidates Database</span>
+                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-mono font-bold border ${
+                        hrTheme === 'light' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-blue-950/40 text-blue-300 border-blue-800/40'
+                      }`}>
+                        {totalCand}
+                      </span>
+                    </h3>
+                  </div>
+
+                  <div className={`flex items-center p-1 rounded-xl border shadow-xs ${
+                    hrTheme === 'light' ? 'bg-white border-slate-200' : 'bg-[#09090b] border-zinc-800'
+                  }`}>
+                    <button
+                      type="button"
+                      onClick={() => setCandidateViewMode('list')}
+                      className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        candidateViewMode === 'list'
+                          ? hrTheme === 'light' ? 'bg-blue-600 text-white shadow-sm font-extrabold' : 'bg-zinc-800 text-white shadow-sm border border-zinc-700 font-extrabold'
+                          : hrTheme === 'light' ? 'text-slate-600 hover:text-slate-900' : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      <span>List View</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCandidateViewMode('kanban')}
+                      className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        candidateViewMode === 'kanban'
+                          ? hrTheme === 'light' ? 'bg-blue-600 text-white shadow-sm font-extrabold' : 'bg-zinc-800 text-white shadow-sm border border-zinc-700 font-extrabold'
+                          : hrTheme === 'light' ? 'text-slate-600 hover:text-slate-900' : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span>Pipeline Board</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filters container */}
+                <div className={`rounded-2xl p-5 border space-y-4 shadow-sm transition-colors ${
+                  hrTheme === 'light' ? 'bg-white border-slate-200' : 'bg-[#18181b] border-zinc-800/60'
+                }`}>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Text Search */}
+                    <div className="space-y-1">
+                      <label className={`text-[10px] uppercase font-extrabold block tracking-wider ${
+                        hrTheme === 'light' ? 'text-slate-500' : 'text-zinc-400'
+                      }`}>Search Candidate</label>
+                      <div className="relative">
+                        <Search className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 ${
+                          hrTheme === 'light' ? 'text-slate-400' : 'text-zinc-500'
+                        }`} />
+                        <input
+                          type="text"
+                          placeholder="Search candidate name or email..."
+                          value={candidateSearchQuery}
+                          onChange={(e) => setCandidateSearchQuery(e.target.value)}
+                          className={`w-full rounded-xl pl-10 pr-3.5 py-2.5 text-xs focus:outline-none font-medium transition-all ${
+                            hrTheme === 'light'
+                              ? 'bg-slate-50 border border-slate-200 text-slate-900 focus:border-blue-600 focus:bg-white placeholder-slate-400'
+                              : 'bg-[#09090b] border border-zinc-800 text-zinc-200 focus:border-zinc-600 placeholder-zinc-600'
+                          }`}
+                        />
+                      </div>
                     </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase font-bold text-zinc-400">Creator Admin</label>
+                    {/* Status Filter */}
+                    <div className="space-y-1">
+                      <label className={`text-[10px] uppercase font-extrabold block tracking-wider ${
+                        hrTheme === 'light' ? 'text-slate-500' : 'text-zinc-400'
+                      }`}>Status Filter</label>
                       <select
-                        value={todoCreatorFilter}
-                        onChange={(e) => setTodoCreatorFilter(e.target.value)}
-                        className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-blue-500 font-semibold"
+                        value={candidateStatusFilter}
+                        onChange={(e) => setCandidateStatusFilter(e.target.value)}
+                        className={`w-full rounded-xl px-3.5 py-2.5 text-xs focus:outline-none font-bold transition-all ${
+                          hrTheme === 'light'
+                            ? 'bg-slate-50 border border-slate-200 text-slate-900 focus:border-blue-600 focus:bg-white'
+                            : 'bg-[#09090b] border border-zinc-800 text-zinc-200 focus:border-zinc-600'
+                        }`}
                       >
-                        <option value="ALL">All Admins</option>
-                        {Array.from(new Set(customTodos.map(t => t.creator))).map(c => (
-                          <option key={c} value={c}>{c}</option>
+                        <option value="ALL">All Statuses</option>
+                        <option value="NEW">New Lead</option>
+                        <option value="RATES_SENT">Rates Sent</option>
+                        <option value="DOCS_REQUESTED">Docs Requested</option>
+                        <option value="SIGNING_SENT">Signing Sent</option>
+                        <option value="TRAINING">Training / Тренинг</option>
+                        <option value="BACKGROUND_CHECK">Background Check</option>
+                        <option value="ONBOARDING">Onboarding</option>
+                        <option value="HIRED">Hired</option>
+                        <option value="REJECTED">Rejected</option>
+                      </select>
+                    </div>
+
+                    {/* State Filter */}
+                    <div className="space-y-1">
+                      <label className={`text-[10px] uppercase font-extrabold block tracking-wider ${
+                        hrTheme === 'light' ? 'text-slate-500' : 'text-zinc-400'
+                      }`}>State Filter</label>
+                      <select
+                        value={candidateStateFilter}
+                        onChange={(e) => setCandidateStateFilter(e.target.value)}
+                        className={`w-full rounded-xl px-3.5 py-2.5 text-xs focus:outline-none font-bold transition-all ${
+                          hrTheme === 'light'
+                            ? 'bg-slate-50 border border-slate-200 text-slate-900 focus:border-blue-600 focus:bg-white'
+                            : 'bg-[#09090b] border border-zinc-800 text-zinc-200 focus:border-zinc-600'
+                        }`}
+                      >
+                        <option value="ALL">All States</option>
+                        <option value="ANY">Flexible / Multi-State</option>
+                        {customStates.map(s => (
+                          <option key={s.id} value={s.code}>{s.name} ({s.code})</option>
                         ))}
                       </select>
                     </div>
                   </div>
+                </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase font-bold text-zinc-400">Target Date Filter</label>
-                      <input
-                        type="date"
-                        value={todoDateFilter}
-                        onChange={(e) => setTodoDateFilter(e.target.value)}
-                        className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-blue-500 font-mono"
-                      />
-                    </div>
+                {/* View Mode Router: List vs Kanban Board */}
+                {candidateViewMode === 'list' ? (
+                  /* LIST VIEW WITH INTERACTIVE STEPPER */
+                  <div className="space-y-4 max-h-[650px] overflow-y-auto pr-1 custom-scrollbar">
+                    {(() => {
+                      const filtered = customCandidates.filter(cand => {
+                        const matchesSearch = 
+                          cand.firstName.toLowerCase().includes(candidateSearchQuery.toLowerCase()) || 
+                          cand.lastName.toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
+                          cand.email.toLowerCase().includes(candidateSearchQuery.toLowerCase());
+                        const matchesStatus = candidateStatusFilter === 'ALL' || cand.status === candidateStatusFilter;
+                        const matchesState = candidateStateFilter === 'ALL' || cand.stateCode === candidateStateFilter;
+                        return matchesSearch && matchesStatus && matchesState;
+                      });
 
-                    <div className="flex items-end">
-                      <button
-                        onClick={() => {
-                          setTodoSearchQuery('');
-                          setTodoCreatorFilter('ALL');
-                          setTodoDateFilter('');
-                        }}
-                        className="w-full bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/60 text-zinc-300 text-xs font-semibold py-2 px-4 rounded-md transition-colors cursor-pointer"
-                      >
-                        Clear Filters
-                      </button>
-                    </div>
+                      if (filtered.length === 0) {
+                        return (
+                          <div className={`rounded-2xl p-8 border text-center italic text-xs font-medium ${
+                            hrTheme === 'light' ? 'bg-white border-slate-200 text-slate-500' : 'bg-[#18181b] border-zinc-800/60 text-zinc-400'
+                          }`}>
+                            No candidates match your selected filters. Click "+ Register Candidate" to add one.
+                          </div>
+                        );
+                      }
+
+                      return filtered.map(cand => {
+                        const initials = (cand.firstName[0] || '') + (cand.lastName[0] || '');
+
+                        const getStatusBadge = (st: string) => {
+                          switch (st) {
+                            case 'NEW':
+                              return { label: 'New Lead', cls: hrTheme === 'light' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-blue-950/40 text-blue-300 border-blue-800/40' };
+                            case 'RATES_SENT':
+                              return { label: 'Rates Sent', cls: hrTheme === 'light' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-indigo-950/40 text-indigo-300 border-indigo-800/40' };
+                            case 'DOCS_REQUESTED':
+                              return { label: 'Docs Requested', cls: hrTheme === 'light' ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-amber-950/30 text-amber-300 border-amber-800/40' };
+                            case 'SIGNING_SENT':
+                              return { label: 'Signing Sent', cls: hrTheme === 'light' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-purple-950/40 text-purple-300 border-purple-800/40' };
+                            case 'TRAINING':
+                              return { label: 'Training / Тренинг', cls: hrTheme === 'light' ? 'bg-cyan-50 text-cyan-700 border-cyan-200' : 'bg-sky-950/40 text-sky-300 border-sky-800/40' };
+                            case 'BACKGROUND_CHECK':
+                              return { label: 'Background Check', cls: hrTheme === 'light' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-900 text-slate-300 border-slate-700/60' };
+                            case 'ONBOARDING':
+                              return { label: 'Onboarding', cls: hrTheme === 'light' ? 'bg-teal-50 text-teal-700 border-teal-200' : 'bg-teal-950/40 text-teal-300 border-teal-800/40' };
+                            case 'HIRED':
+                              return { label: 'Hired', cls: hrTheme === 'light' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-emerald-950/40 text-emerald-300 border-emerald-800/40' };
+                            default:
+                              return { label: 'Rejected', cls: hrTheme === 'light' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-rose-950/40 text-rose-300 border-rose-800/40' };
+                          }
+                        };
+
+                        const badge = getStatusBadge(cand.status);
+
+                        return (
+                          <div
+                            key={cand.id}
+                            className={`rounded-2xl p-4 border transition-all shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                              hrTheme === 'light'
+                                ? 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800 shadow-xs'
+                                : 'bg-[#18181b] hover:bg-[#1c1c20] border-zinc-800/60 text-white'
+                            }`}
+                          >
+                            {/* Left: Avatar + Name + Email + Status */}
+                            <div className="flex items-center space-x-3.5 min-w-0">
+                              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-xs font-mono border shrink-0 shadow-inner ${
+                                hrTheme === 'light'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : 'bg-gradient-to-br from-teal-500/20 to-blue-600/20 text-teal-300 border-teal-500/30'
+                              }`}>
+                                {initials.toUpperCase() || 'C'}
+                              </div>
+                              <div className="space-y-1 text-xs min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className={`text-sm font-extrabold ${
+                                    hrTheme === 'light' ? 'text-slate-900' : 'text-white'
+                                  }`}>
+                                    {cand.firstName} {cand.lastName}
+                                  </h4>
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md font-mono border ${
+                                    hrTheme === 'light'
+                                      ? 'bg-slate-100 border-slate-200 text-slate-700'
+                                      : 'bg-[#09090b] border-zinc-800 text-zinc-300'
+                                  }`}>
+                                    {cand.stateCode === 'ANY' || !cand.stateCode ? '🌐 ANY' : cand.stateCode}
+                                  </span>
+                                  <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${badge.cls}`}>
+                                    ● {badge.label}
+                                  </span>
+                                </div>
+
+                                <div className={`flex flex-wrap items-center gap-3 text-[11px] ${
+                                  hrTheme === 'light' ? 'text-slate-500 font-medium' : 'text-zinc-400'
+                                }`}>
+                                  <span className="flex items-center gap-1">
+                                    <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <span>{cand.email}</span>
+                                  </span>
+                                  {cand.phone && (
+                                    <span className="flex items-center gap-1">
+                                      <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                      <span>{cand.phone}</span>
+                                    </span>
+                                  )}
+                                </div>
+                                {cand.notes && (
+                                  <p className={`text-[11px] mt-1 italic truncate max-w-md ${
+                                    hrTheme === 'light' ? 'text-slate-500' : 'text-zinc-400'
+                                  }`}>
+                                    "{cand.notes}"
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Right: Clean Actions with Send Rates Modal Config */}
+                            <div className="flex items-center space-x-1.5 shrink-0">
+                              <button
+                                title="Send Custom Rates (Choose State & Cut)"
+                                onClick={() => handleOpenRatesConfig(cand)}
+                                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl transition-colors cursor-pointer text-xs font-extrabold shadow-sm border ${
+                                  hrTheme === 'light'
+                                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                                    : 'bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border-emerald-800/50'
+                                }`}
+                              >
+                                <DollarSign className="w-3.5 h-3.5" />
+                                <span>Send Rates</span>
+                              </button>
+
+                              <button
+                                title="Request Docs Email"
+                                onClick={() => handleOpenEmailPreview(cand.id, 'DOCS_REQUEST')}
+                                className={`p-2 rounded-xl transition-colors cursor-pointer border ${
+                                  hrTheme === 'light'
+                                    ? 'hover:bg-slate-100 text-slate-600 border-transparent'
+                                    : 'hover:text-white hover:bg-[#09090b] border-transparent'
+                                }`}
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                title="View Candidate Uploaded Documents & Link"
+                                onClick={() => handleViewCandidateDocs(cand)}
+                                className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl transition-colors cursor-pointer text-xs font-bold border ${
+                                  hrTheme === 'light'
+                                    ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+                                    : 'bg-blue-950/50 hover:bg-blue-900/60 text-blue-300 border-blue-800/50'
+                                }`}
+                              >
+                                <FolderOpen className="w-3.5 h-3.5" />
+                                <span>Docs</span>
+                              </button>
+
+                              <button
+                                title="Send Signing Email (4 PDFs from Documents)"
+                                onClick={() => handleOpenEmailPreview(cand.id, 'DOCS_SIGNING')}
+                                className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl transition-colors cursor-pointer text-xs font-extrabold border ${
+                                  hrTheme === 'light'
+                                    ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200'
+                                    : 'bg-purple-950/50 hover:bg-purple-900/60 text-purple-300 border-purple-800/50'
+                                }`}
+                              >
+                                <CheckSquare className="w-3.5 h-3.5" />
+                                <span>Sign Docs</span>
+                              </button>
+
+                              <button
+                                title="Copy Signing Link"
+                                onClick={() => handleCopySigningLink(cand.id)}
+                                className={`p-2 rounded-xl transition-colors cursor-pointer border ${
+                                  hrTheme === 'light'
+                                    ? 'text-slate-500 hover:text-blue-600 hover:bg-blue-50 border-transparent'
+                                    : 'text-zinc-400 hover:text-blue-400 hover:bg-[#09090b] border-transparent'
+                                }`}
+                              >
+                                <PenTool className="w-3.5 h-3.5" />
+                              </button>
+
+                              <div className={`h-4 w-px mx-1 ${
+                                hrTheme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'
+                              }`} />
+
+                              <button
+                                title="Edit Candidate & Status Stage"
+                                onClick={() => handleEditCandidateClick(cand)}
+                                className={`p-2 rounded-xl transition-colors cursor-pointer border ${
+                                  hrTheme === 'light'
+                                    ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 border-transparent'
+                                    : 'text-zinc-400 hover:text-white hover:bg-[#09090b] border-transparent'
+                                }`}
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                title="Delete Candidate"
+                                onClick={() => handleDeleteCandidate(cand.id)}
+                                className={`p-2 rounded-xl transition-colors cursor-pointer border ${
+                                  hrTheme === 'light'
+                                    ? 'text-rose-600 hover:bg-rose-50 border-transparent'
+                                    : 'text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 border-transparent'
+                                }`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                ) : (
+                  /* KANBAN PIPELINE BOARD VIEW */
+                  <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4 overflow-x-auto pb-4 custom-scrollbar">
+                    {[
+                      { key: 'NEW', title: 'New Leads' },
+                      { key: 'RATES_SENT', title: 'Rates Sent' },
+                      { key: 'DOCS_REQUESTED', title: 'Docs Requested' },
+                      { key: 'SIGNING_SENT', title: 'Signing Sent' },
+                      { key: 'TRAINING', title: 'Training' },
+                      { key: 'ONBOARDING', title: 'Onboarding / BG' },
+                      { key: 'HIRED', title: 'Hired' },
+                    ].map((col) => {
+                      const colCandidates = customCandidates.filter(c => {
+                        const matchesSearch = 
+                          c.firstName.toLowerCase().includes(candidateSearchQuery.toLowerCase()) || 
+                          c.lastName.toLowerCase().includes(candidateSearchQuery.toLowerCase()) ||
+                          c.email.toLowerCase().includes(candidateSearchQuery.toLowerCase());
+                        const matchesState = candidateStateFilter === 'ALL' || c.stateCode === candidateStateFilter;
+                        return c.status === col.key && matchesSearch && matchesState;
+                      });
+
+                      return (
+                        <div key={col.key} className={`rounded-2xl p-4 border space-y-3 min-w-[240px] ${
+                          hrTheme === 'light'
+                            ? 'bg-white border-slate-200 shadow-xs'
+                            : 'bg-[#18181b] border-zinc-800'
+                        }`}>
+                          <div className={`flex items-center justify-between pb-2 border-b ${
+                            hrTheme === 'light' ? 'border-slate-200' : 'border-zinc-800'
+                          }`}>
+                            <h4 className={`text-xs font-extrabold ${
+                              hrTheme === 'light' ? 'text-slate-800' : 'text-white'
+                            }`}>{col.title}</h4>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              hrTheme === 'light'
+                                ? 'bg-slate-100 text-slate-700 border-slate-200'
+                                : 'bg-[#09090b] text-zinc-300 border-zinc-800'
+                            }`}>
+                              {colCandidates.length}
+                            </span>
+                          </div>
+
+                          <div className="space-y-3 max-h-[550px] overflow-y-auto custom-scrollbar pr-1">
+                            {colCandidates.length === 0 ? (
+                              <div className={`p-4 text-center italic text-[11px] border border-dashed rounded-xl ${
+                                hrTheme === 'light' ? 'border-slate-200 text-slate-400' : 'border-zinc-800 text-zinc-500'
+                              }`}>
+                                No candidates
+                              </div>
+                            ) : (
+                              colCandidates.map(cand => (
+                                <div key={cand.id} className={`border rounded-xl p-3 space-y-2 shadow-xs transition-all ${
+                                  hrTheme === 'light'
+                                    ? 'bg-slate-50 border-slate-200 hover:border-blue-400 text-slate-800'
+                                    : 'bg-[#09090b] border-zinc-800 hover:border-zinc-700 text-white'
+                                }`}>
+                                  <div className="flex items-start justify-between">
+                                    <div>
+                                      <h5 className={`font-extrabold text-xs ${
+                                        hrTheme === 'light' ? 'text-slate-900' : 'text-white'
+                                      }`}>{cand.firstName} {cand.lastName}</h5>
+                                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase font-mono mt-1 inline-block border ${
+                                        hrTheme === 'light' ? 'bg-slate-200 text-slate-700 border-slate-300' : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                                      }`}>
+                                        {cand.stateCode}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <p className={`text-[10px] truncate ${
+                                    hrTheme === 'light' ? 'text-slate-500' : 'text-zinc-400'
+                                  }`}>{cand.email}</p>
+                                  
+                                  {/* Move Action Buttons */}
+                                  <div className={`flex items-center justify-between pt-2 border-t text-[10px] ${
+                                    hrTheme === 'light' ? 'border-slate-200' : 'border-zinc-800/80'
+                                  }`}>
+                                    {col.key !== 'NEW' && (
+                                      <button
+                                        onClick={() => {
+                                          const order = ['NEW', 'RATES_SENT', 'DOCS_REQUESTED', 'SIGNING_SENT', 'TRAINING', 'ONBOARDING', 'HIRED'];
+                                          const idx = order.indexOf(col.key);
+                                          if (idx > 0) handleUpdateCandidateStatus(cand.id, order[idx - 1]);
+                                        }}
+                                        className={`flex items-center gap-0.5 font-bold cursor-pointer ${
+                                          hrTheme === 'light' ? 'text-slate-600 hover:text-slate-900' : 'text-zinc-400 hover:text-white'
+                                        }`}
+                                      >
+                                        <ArrowLeft className="w-3 h-3" />
+                                        <span>Back</span>
+                                      </button>
+                                    )}
+                                    {col.key !== 'HIRED' && (
+                                      <button
+                                        onClick={() => {
+                                          const order = ['NEW', 'RATES_SENT', 'DOCS_REQUESTED', 'SIGNING_SENT', 'TRAINING', 'ONBOARDING', 'HIRED'];
+                                          const idx = order.indexOf(col.key);
+                                          if (idx < order.length - 1) handleUpdateCandidateStatus(cand.id, order[idx + 1]);
+                                        }}
+                                        className="ml-auto text-blue-600 hover:text-blue-700 flex items-center gap-0.5 font-extrabold cursor-pointer"
+                                      >
+                                        <span>Next</span>
+                                        <ArrowRight className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Section: Tickets & Website Leads */}
+          {activeSection === 'tickets' && (
+            <div className="space-y-6 animate-fadeIn">
+              {/* Header Title Block */}
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <h1 className="text-xl font-black text-slate-100 tracking-wide flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-[#1a73e8]" />
+                    <span>Tickets & Website Leads</span>
+                    {unreadTicketsCount > 0 && (
+                      <span className="px-2.5 py-0.5 text-xs font-black bg-[#1a73e8] text-white rounded-full animate-pulse shadow-md">
+                        {unreadTicketsCount} NEW
+                      </span>
+                    )}
+                  </h1>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Live contact form requests and job applications submitted through netcoretelecom.com
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={fetchTickets}
+                  className="netcore-btn-outline flex items-center space-x-2 shrink-0 self-start md:self-auto"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Refresh Tickets</span>
+                </button>
+              </div>
+
+              {/* Top Metric Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-[#1a1c23] border border-[#2c2f38] p-4 rounded-2xl flex items-center justify-between shadow-sm">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Total Inquiries</span>
+                    <h3 className="text-2xl font-black text-white mt-1">{customTickets.length}</h3>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-[#121316] border border-[#2c2f38] text-[#4285f4] flex items-center justify-center">
+                    <MessageSquare className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="bg-[#1a1c23] border border-[#1a73e8]/40 p-4 rounded-2xl flex items-center justify-between shadow-sm">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-[#4285f4] tracking-wider">New (Unread)</span>
+                    <h3 className="text-2xl font-black text-[#4285f4] mt-1">{unreadTicketsCount}</h3>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-[#1a73e8]/15 border border-[#1a73e8]/30 text-[#4285f4] flex items-center justify-center">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="bg-[#1a1c23] border border-[#2c2f38] p-4 rounded-2xl flex items-center justify-between shadow-sm">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider">In Progress</span>
+                    <h3 className="text-2xl font-black text-amber-400 mt-1">
+                      {customTickets.filter(t => t.status === 'IN_PROGRESS').length}
+                    </h3>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                </div>
+
+                <div className="bg-[#1a1c23] border border-[#2c2f38] p-4 rounded-2xl flex items-center justify-between shadow-sm">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Resolved</span>
+                    <h3 className="text-2xl font-black text-emerald-400 mt-1">
+                      {customTickets.filter(t => t.status === 'RESOLVED').length}
+                    </h3>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <CheckCircle className="w-5 h-5" />
                   </div>
                 </div>
               </div>
 
-              {/* Two Columns Layout */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Pending Column */}
-                <div className="bg-[#18181b] rounded-xl p-6 border border-zinc-800/40 flex flex-col min-h-[400px]">
-                  <h3 className="text-sm font-bold text-slate-100 tracking-wide border-b border-zinc-800 pb-3 flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                      Pending Tasks
-                    </span>
-                    <span className="text-xs bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded font-mono font-bold border border-blue-500/20">
-                      {filteredPendingTodos.length}
-                    </span>
-                  </h3>
-                  
-                  <div className="flex-1 overflow-y-auto max-h-[500px] mt-4 space-y-3 pr-1 custom-scrollbar">
-                    {filteredPendingTodos.length === 0 ? (
-                      <div className="h-full flex items-center justify-center text-zinc-500 italic text-xs py-12">
-                        No pending tasks match criteria.
-                      </div>
-                    ) : (
-                      filteredPendingTodos.map(todo => (
-                        <div key={todo.id} className="bg-[#09090b]/80 border border-zinc-800/60 rounded-xl p-4 space-y-3 hover:border-zinc-700/60 transition-all">
-                          <div className="flex items-start justify-between gap-3">
-                            <label className="flex items-start space-x-3 cursor-pointer select-none">
-                              <input 
-                                type="checkbox"
-                                checked={todo.completed}
-                                onChange={() => handleToggleTodo(todo.id)}
-                                className="w-4 h-4 rounded bg-[#18181b] border-zinc-700 text-blue-500 focus:ring-0 focus:ring-offset-0 mt-0.5 cursor-pointer"
-                              />
-                              <span className="text-zinc-200 text-xs font-semibold leading-normal break-words">
-                                {todo.text}
-                              </span>
-                            </label>
-                            <button
-                              onClick={() => handleDeleteTodo(todo.id)}
-                              className="text-zinc-500 hover:text-rose-500 transition-colors p-1"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                          
-                          {todo.description && (
-                            <p className="text-[11px] text-zinc-400 pl-7 leading-normal break-words">
-                              {todo.description}
-                            </p>
-                          )}
+              {/* Filters & Search Toolbar */}
+              <div className="bg-[#1a1c23] border border-[#2c2f38] p-4 rounded-2xl space-y-4">
+                <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+                  {/* Search Bar */}
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+                    <input
+                      type="text"
+                      placeholder="Search name, email, phone, message..."
+                      value={ticketSearchQuery}
+                      onChange={(e) => setTicketSearchQuery(e.target.value)}
+                      className="w-full bg-[#121316] border border-[#2c2f38] rounded-full pl-10 pr-4 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#1a73e8]"
+                    />
+                  </div>
 
-                          <div className="flex items-center justify-between pt-2 border-t border-zinc-800/40 text-[9.5px]">
-                            <span className="text-zinc-500 font-bold font-mono">
-                              Target: {todo.date}
-                            </span>
-                            <div className="flex items-center space-x-1.5 text-zinc-400">
-                              {todo.priority && (
-                                <span className={`text-[8.5px] font-extrabold uppercase px-1.5 py-0.5 rounded-sm border ${
-                                  todo.priority === 'HIGH' 
-                                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/25 animate-pulse' 
-                                    : todo.priority === 'MEDIUM' 
-                                      ? 'bg-amber-500/10 text-amber-400 border-amber-500/25' 
-                                      : 'bg-zinc-850 text-zinc-500 border-zinc-700/60'
-                                }`}>
-                                  {todo.priority === 'HIGH' ? 'Важно' : todo.priority === 'MEDIUM' ? 'Средний' : 'Низкий'}
-                                </span>
-                              )}
-                              <span className="uppercase font-bold tracking-wider bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-800">
-                                {todo.creator}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
+                  {/* Status Pills */}
+                  <div className="flex items-center space-x-1 overflow-x-auto pb-1 md:pb-0 custom-scrollbar">
+                    {['ALL', 'NEW', 'IN_PROGRESS', 'RESOLVED', 'ARCHIVED'].map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setTicketStatusFilter(st)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+                          ticketStatusFilter === st
+                            ? 'bg-[#1a73e8] text-white shadow-sm'
+                            : 'bg-[#121316] text-zinc-400 hover:text-white border border-[#2c2f38]'
+                        }`}
+                      >
+                        {st.replace('_', ' ')}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Completed Column */}
-                <div className="bg-[#18181b] rounded-xl p-6 border border-zinc-800/40 flex flex-col min-h-[400px]">
-                  <h3 className="text-sm font-bold text-slate-100 tracking-wide border-b border-zinc-800 pb-3 flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      Completed Tasks
-                    </span>
-                    <span className="text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-mono font-bold border border-emerald-500/20">
-                      {filteredCompletedTodos.length}
-                    </span>
-                  </h3>
+                {/* Category Pills */}
+                <div className="flex items-center space-x-2 pt-2 border-t border-[#2c2f38]/60 overflow-x-auto custom-scrollbar">
+                  <span className="text-[10px] uppercase font-bold text-zinc-500 mr-2 shrink-0">Category:</span>
+                  {[
+                    { key: 'ALL', label: 'All Categories' },
+                    { key: 'CONTACT_FORM', label: 'Contact Form' },
+                    { key: 'JOB_APPLICATION', label: 'Job Applications' },
+                    { key: 'GENERAL_INQUIRY', label: 'General Inquiries' },
+                  ].map((cat) => (
+                    <button
+                      key={cat.key}
+                      type="button"
+                      onClick={() => setTicketCategoryFilter(cat.key)}
+                      className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all whitespace-nowrap ${
+                        ticketCategoryFilter === cat.key
+                          ? 'bg-[#e8f0fe] text-[#1a73e8] font-extrabold'
+                          : 'text-zinc-400 hover:text-white bg-[#121316] border border-[#2c2f38]'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                  <div className="flex-1 overflow-y-auto max-h-[500px] mt-4 space-y-3 pr-1 custom-scrollbar">
-                    {filteredCompletedTodos.length === 0 ? (
-                      <div className="h-full flex items-center justify-center text-zinc-500 italic text-xs py-12">
-                        No completed tasks match criteria.
-                      </div>
-                    ) : (
-                      filteredCompletedTodos.map(todo => (
-                        <div key={todo.id} className="bg-[#09090b]/40 border border-zinc-800/30 rounded-xl p-4 space-y-3 hover:border-zinc-800/60 transition-all opacity-85">
-                          <div className="flex items-start justify-between gap-3">
-                            <label className="flex items-start space-x-3 cursor-pointer select-none">
-                              <input 
-                                type="checkbox"
-                                checked={todo.completed}
-                                onChange={() => handleToggleTodo(todo.id)}
-                                className="w-4 h-4 rounded bg-[#18181b] border-zinc-700 text-emerald-500 focus:ring-0 focus:ring-offset-0 mt-0.5 cursor-pointer"
-                              />
-                              <span className="text-zinc-500 text-xs font-semibold leading-normal line-through break-words">
-                                {todo.text}
+              {/* Tickets Table / List */}
+              <div className="bg-[#1a1c23] border border-[#2c2f38] rounded-2xl overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-[#121316] border-b border-[#2c2f38] text-[10px] uppercase font-extrabold text-zinc-400 tracking-wider">
+                        <th className="py-3 px-4">Date / Time</th>
+                        <th className="py-3 px-4">Sender Details</th>
+                        <th className="py-3 px-4">Category</th>
+                        <th className="py-3 px-4">Subject / Details</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#2c2f38] text-xs">
+                      {(() => {
+                        const filtered = customTickets.filter(t => {
+                          const matchesStatus = ticketStatusFilter === 'ALL' || t.status === ticketStatusFilter;
+                          const matchesCat = ticketCategoryFilter === 'ALL' || t.category === ticketCategoryFilter;
+                          const q = ticketSearchQuery.toLowerCase();
+                          const matchesSearch = !q || (
+                            t.name.toLowerCase().includes(q) ||
+                            t.email.toLowerCase().includes(q) ||
+                            (t.phone && t.phone.toLowerCase().includes(q)) ||
+                            (t.subject && t.subject.toLowerCase().includes(q)) ||
+                            t.message.toLowerCase().includes(q)
+                          );
+                          return matchesStatus && matchesCat && matchesSearch;
+                        });
+
+                        if (filtered.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan={6} className="py-12 text-center text-zinc-500 font-medium">
+                                No tickets or website inquiries found matching your filters.
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        return filtered.map((t) => (
+                          <tr key={t.id} className="hover:bg-[#1e2029] transition-colors">
+                            <td className="py-3 px-4 font-mono text-zinc-400 whitespace-nowrap">
+                              {new Date(t.createdAt).toLocaleDateString()} {new Date(t.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="font-bold text-white">{t.name}</div>
+                              <div className="text-[11px] text-[#4285f4]">{t.email}</div>
+                              {t.phone && <div className="text-[10px] text-zinc-400 font-mono">{t.phone}</div>}
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wide border ${
+                                t.category === 'JOB_APPLICATION'
+                                  ? 'bg-purple-500/10 text-purple-400 border-purple-500/30'
+                                  : t.category === 'CONTACT_FORM'
+                                  ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                                  : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                              }`}>
+                                {t.category === 'JOB_APPLICATION' ? 'Job Application' : t.category === 'CONTACT_FORM' ? 'Contact Form' : t.category}
                               </span>
-                            </label>
-                            <button
-                              onClick={() => handleDeleteTodo(todo.id)}
-                              className="text-zinc-600 hover:text-rose-500 transition-colors p-1"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-
-                          {todo.description && (
-                            <p className="text-[11px] text-zinc-600 pl-7 leading-normal line-through break-words">
-                              {todo.description}
-                            </p>
-                          )}
-
-                          <div className="flex items-center justify-between pt-2 border-t border-zinc-800/40 text-[9.5px]">
-                            <span className="text-zinc-600 font-bold font-mono">
-                              Target: {todo.date}
-                            </span>
-                            <div className="flex items-center space-x-1.5 text-zinc-500">
-                              {todo.priority && (
-                                <span className={`text-[8.5px] font-extrabold uppercase px-1.5 py-0.5 rounded-sm border ${
-                                  todo.priority === 'HIGH' 
-                                    ? 'bg-rose-500/5 text-rose-500/40 border-rose-500/10' 
-                                    : todo.priority === 'MEDIUM' 
-                                      ? 'bg-amber-500/5 text-amber-500/40 border-amber-500/10' 
-                                      : 'bg-zinc-800/10 text-zinc-600 border border-zinc-850/30'
-                                }`}>
-                                  {todo.priority === 'HIGH' ? 'Важно' : todo.priority === 'MEDIUM' ? 'Средний' : 'Низкий'}
-                                </span>
-                              )}
-                              <span className="uppercase font-bold tracking-wider bg-zinc-800/20 px-1.5 py-0.5 rounded border border-zinc-800/40">
-                                {todo.creator}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
+                            </td>
+                            <td className="py-3 px-4 max-w-xs">
+                              <div className="font-bold text-zinc-200 truncate">{t.subject || 'Website Inquiry'}</div>
+                              <div className="text-[11px] text-zinc-400 truncate">{t.message}</div>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <select
+                                value={t.status}
+                                onChange={(e) => handleUpdateTicketStatus(t.id, e.target.value)}
+                                className={`text-[11px] font-extrabold rounded-full px-2.5 py-1 focus:outline-none cursor-pointer border ${
+                                  t.status === 'NEW'
+                                    ? 'bg-[#1a73e8] text-white border-transparent'
+                                    : t.status === 'IN_PROGRESS'
+                                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                    : t.status === 'RESOLVED'
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                    : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                                }`}
+                              >
+                                <option value="NEW" className="bg-[#18181b] text-white">NEW</option>
+                                <option value="IN_PROGRESS" className="bg-[#18181b] text-white">IN PROGRESS</option>
+                                <option value="RESOLVED" className="bg-[#18181b] text-white">RESOLVED</option>
+                                <option value="ARCHIVED" className="bg-[#18181b] text-white">ARCHIVED</option>
+                              </select>
+                            </td>
+                            <td className="py-3 px-4 text-right whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedTicket(t);
+                                  setTicketNotes(t.notes || '');
+                                  setIsTicketModalOpen(true);
+                                  if (t.status === 'NEW') {
+                                    handleUpdateTicketStatus(t.id, 'IN_PROGRESS');
+                                  }
+                                }}
+                                className="px-3 py-1 bg-[#1a73e8]/15 text-[#4285f4] hover:bg-[#1a73e8]/30 rounded-full font-bold text-xs mr-2 transition-colors"
+                              >
+                                View Details
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTicket(t.id)}
+                                className="px-2 py-1 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-full transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 inline" />
+                              </button>
+                            </td>
+                          </tr>
+                        ));
+                      })()}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
           )}
-
         </div>
       </main>
+
 
       {/* Add/Edit Modal */}
       {isRateModalOpen && (
@@ -5235,6 +6700,706 @@ export default function Home() {
         </div>
       )}
 
+      {/* Add/Edit Candidate Modal */}
+      {isCandidateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#09090b]/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-slideUp">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-zinc-850 flex items-center justify-between bg-[#09090b]/10">
+              <h4 className="text-sm font-bold text-slate-100 tracking-wide">
+                {editingCandidate ? 'Edit Candidate Profile' : 'Register New Candidate'}
+              </h4>
+              <button 
+                onClick={() => setIsCandidateModalOpen(false)}
+                className="text-zinc-500 hover:text-zinc-350 transition-colors bg-transparent border-0 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleSaveCandidate} className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-zinc-500">First Name *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={candidateForm.firstName}
+                    onChange={(e) => setCandidateForm({ ...candidateForm, firstName: e.target.value })}
+                    placeholder="John"
+                    className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-teal-500 placeholder-slate-600 font-bold"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-zinc-500">Last Name *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={candidateForm.lastName}
+                    onChange={(e) => setCandidateForm({ ...candidateForm, lastName: e.target.value })}
+                    placeholder="Doe"
+                    className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-teal-500 placeholder-slate-600 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-zinc-500">Email Address *</label>
+                <input 
+                  type="email" 
+                  required
+                  value={candidateForm.email}
+                  onChange={(e) => setCandidateForm({ ...candidateForm, email: e.target.value })}
+                  placeholder="john.doe@example.com"
+                  className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-teal-500 placeholder-slate-600 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-zinc-500">Phone Number</label>
+                  <input 
+                    type="text" 
+                    value={candidateForm.phone}
+                    onChange={(e) => setCandidateForm({ ...candidateForm, phone: e.target.value })}
+                    placeholder="(555) 000-0000"
+                    className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-teal-500 placeholder-slate-600 font-bold"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-zinc-500">Target State *</label>
+                  <select
+                    value={candidateForm.stateCode}
+                    onChange={(e) => setCandidateForm({ ...candidateForm, stateCode: e.target.value })}
+                    className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-teal-500 font-bold"
+                  >
+                    <option value="ANY">🌐 Flexible / Multi-State</option>
+                    {customStates.map(s => (
+                      <option key={s.id} value={s.code}>{s.name} ({s.code})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-zinc-500">Recruitment Stage / Status *</label>
+                <select
+                  value={candidateForm.status}
+                  onChange={(e) => setCandidateForm({ ...candidateForm, status: e.target.value })}
+                  className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-teal-500 font-bold"
+                >
+                  <option value="NEW">1. New Lead</option>
+                  <option value="RATES_SENT">2. Rates Sent</option>
+                  <option value="DOCS_REQUESTED">3. Docs Requested</option>
+                  <option value="SIGNING_SENT">4. Signing Sent</option>
+                  <option value="TRAINING">5. Training / Тренинг</option>
+                  <option value="BACKGROUND_CHECK">6. Background Check</option>
+                  <option value="ONBOARDING">7. Onboarding</option>
+                  <option value="HIRED">8. Hired / Employee Created</option>
+                  <option value="REJECTED">❌ Rejected</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-zinc-500">Internal Recruiter Notes</label>
+                <textarea 
+                  rows={3}
+                  value={candidateForm.notes}
+                  onChange={(e) => setCandidateForm({ ...candidateForm, notes: e.target.value })}
+                  placeholder="Notes from initial pre-screening call or document statuses..."
+                  className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-teal-500 placeholder-slate-600 custom-scrollbar resize-none font-bold"
+                />
+              </div>
+
+              {/* Action footer */}
+              <div className="flex items-center justify-end space-x-3 pt-3 border-t border-zinc-800">
+                <button 
+                  type="button"
+                  onClick={() => setIsCandidateModalOpen(false)}
+                  className="px-4 py-2 bg-[#09090b] border border-[#27272a] text-zinc-400 text-xs font-semibold rounded-md hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  className="px-4 py-2 bg-teal-500 text-zinc-950 text-xs font-bold rounded-md hover:bg-teal-400 shadow-lg shadow-teal-500/5 transition-all cursor-pointer"
+                >
+                  Save Profile
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Send Rates Config Modal */}
+      {isSendRatesConfigOpen && sendRatesCandidate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#09090b]/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#18181b] border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-slideUp">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-[#09090b]/40">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
+                  <DollarSign className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white tracking-wide">
+                    Configure Rates Email Dispatch
+                  </h4>
+                  <p className="text-[11px] text-zinc-400">
+                    Candidate: <span className="text-zinc-200 font-semibold">{sendRatesCandidate.firstName} {sendRatesCandidate.lastName}</span> ({sendRatesCandidate.email})
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsSendRatesConfigOpen(false)}
+                className="text-zinc-400 hover:text-zinc-200 p-1.5 rounded-full hover:bg-zinc-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <div className="p-6 space-y-5 text-xs">
+              {/* State Selection */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-zinc-400 block tracking-wider">
+                  1. Select Target State for Rate Sheet *
+                </label>
+                <select
+                  value={sendRatesStateCode}
+                  onChange={(e) => handleSendRatesStateChange(e.target.value)}
+                  className="w-full bg-[#09090b] border border-zinc-700/80 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-bold shadow-inner"
+                >
+                  {customStates.map(s => (
+                    <option key={s.id} value={s.code}>
+                      {s.name} ({s.code}) — Default Cut: {Number(s.defaultCut || 8).toFixed(1)}% | Per Diem: ${Number(s.employeePerDiem || 0).toFixed(2)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Company Retention Cut Adjustment */}
+              <div className="bg-[#09090b] p-4 rounded-xl border border-zinc-800/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">
+                    2. Company Retention Cut (%)
+                  </label>
+                  <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
+                    AVG Profit: <span className="font-extrabold text-emerald-300">${(() => {
+                      const cutPercent = parseFloat(sendRatesCompanyCut) || 0;
+                      let ratesForState = customRatePlans.filter(r => r.stateCode === sendRatesStateCode);
+                      if (sendRatesSelectedProviders.length > 0) {
+                        const filtered = ratesForState.filter(r => sendRatesSelectedProviders.includes(r.provider));
+                        if (filtered.length > 0) ratesForState = filtered;
+                      }
+                      if (ratesForState.length === 0) return (120 * (cutPercent / 100)).toFixed(2);
+                      const totalProf = ratesForState.reduce((sum, r) => sum + (Number(r.grossPrice) * (cutPercent / 100)), 0);
+                      return (totalProf / ratesForState.length).toFixed(2);
+                    })()} / job</span>
+                  </span>
+                </div>
+                <div className="grid grid-cols-[1fr_100px] gap-3 items-center">
+                  <input
+                    type="range"
+                    min="0"
+                    max="40"
+                    step="0.5"
+                    value={sendRatesCompanyCut}
+                    onChange={(e) => setSendRatesCompanyCut(e.target.value)}
+                    className="w-full accent-emerald-500 bg-zinc-800 h-2 rounded-lg cursor-pointer"
+                  />
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="100"
+                      value={sendRatesCompanyCut}
+                      onChange={(e) => setSendRatesCompanyCut(e.target.value)}
+                      className="w-full bg-[#18181b] border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-right font-mono font-bold text-white focus:outline-none focus:border-emerald-500"
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 text-[10px] pointer-events-none">%</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 pt-1">
+                  {[5, 8, 10, 12, 15].map(val => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setSendRatesCompanyCut(val.toString())}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono transition-all cursor-pointer ${
+                        parseFloat(sendRatesCompanyCut) === val
+                          ? 'bg-emerald-500 text-zinc-950 shadow-sm'
+                          : 'bg-zinc-800/80 text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      {val}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Per Diem Adjustment */}
+              <div className="bg-[#09090b] p-4 rounded-xl border border-zinc-800/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">
+                    3. Tech Daily Per Diem ($)
+                  </label>
+                  <span className="text-[10px] text-zinc-400 italic">Included in rate sheet banner</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 items-center">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 font-mono text-xs">$</span>
+                    <input
+                      type="number"
+                      step="5"
+                      min="0"
+                      value={sendRatesPerDiem}
+                      onChange={(e) => setSendRatesPerDiem(e.target.value)}
+                      className="w-full bg-[#18181b] border border-zinc-700 rounded-lg pl-7 pr-3 py-1.5 text-xs font-mono font-bold text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {[0, 25, 35, 50].map(amt => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setSendRatesPerDiem(amt.toString())}
+                        className={`px-2 py-1 rounded text-[10px] font-bold font-mono transition-all cursor-pointer border ${
+                          parseFloat(sendRatesPerDiem) === amt
+                            ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                            : 'bg-zinc-800/60 text-zinc-400 border-transparent hover:text-zinc-200'
+                        }`}
+                      >
+                        ${amt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Provider Selection (If state has 1+ providers) */}
+              {(() => {
+                const stateProviders = Array.from(
+                  new Set(
+                    customRatePlans
+                      .filter(r => r.stateCode === sendRatesStateCode)
+                      .map(r => r.provider)
+                  )
+                ).filter(Boolean);
+
+                if (stateProviders.length === 0) return null;
+
+                return (
+                  <div className="bg-[#09090b] p-4 rounded-xl border border-zinc-800/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] uppercase font-bold text-teal-400 tracking-wider flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-teal-400" />
+                        4. Select Provider(s) in State ({stateProviders.length} available)
+                      </label>
+                      <span className="text-[10px] text-zinc-500 font-mono">
+                        {sendRatesSelectedProviders.length === 0 ? 'All Included' : `${sendRatesSelectedProviders.length} Selected`}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setSendRatesSelectedProviders([])}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                          sendRatesSelectedProviders.length === 0
+                            ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 shadow-sm shadow-teal-500/10 font-extrabold'
+                            : 'bg-zinc-800/60 text-zinc-400 border-transparent hover:text-zinc-200'
+                        }`}
+                      >
+                        All Providers ({stateProviders.length})
+                      </button>
+                      {stateProviders.map(p => {
+                        const isSelected = sendRatesSelectedProviders.includes(p);
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                setSendRatesSelectedProviders(sendRatesSelectedProviders.filter(item => item !== p));
+                              } else {
+                                setSendRatesSelectedProviders([...sendRatesSelectedProviders, p]);
+                              }
+                            }}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border flex items-center gap-1 ${
+                              isSelected
+                                ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 shadow-sm shadow-teal-500/10 font-extrabold'
+                                : 'bg-zinc-800/60 text-zinc-400 border-transparent hover:text-zinc-200'
+                            }`}
+                          >
+                            <span>{p}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Modal Footer Actions */}
+              <div className="flex items-center justify-end space-x-3 pt-3 border-t border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setIsSendRatesConfigOpen(false)}
+                  className="px-4 py-2 bg-[#09090b] border border-zinc-800 text-zinc-400 text-xs font-semibold rounded-xl hover:bg-zinc-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSendRates}
+                  className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-xs font-extrabold rounded-xl shadow-lg shadow-emerald-500/10 transition-all cursor-pointer flex items-center space-x-2"
+                >
+                  <Mail className="w-4 h-4 text-zinc-950" />
+                  <span>Preview & Generate Rates Email</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Preview Modal */}
+      {isEmailPreviewOpen && emailPreviewData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#09090b]/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-slideUp flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-zinc-850 flex items-center justify-between bg-[#09090b]/10 shrink-0">
+              <h4 className="text-sm font-bold text-slate-100 tracking-wide flex items-center gap-2">
+                <Mail className="w-4 h-4 text-teal-400" />
+                Email Templates Preview
+              </h4>
+              <button 
+                onClick={() => {
+                  setIsEmailPreviewOpen(false);
+                  setEmailPreviewData(null);
+                }}
+                className="text-zinc-500 hover:text-zinc-350 transition-colors bg-transparent border-0 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1 text-xs">
+              <div className="space-y-3 bg-[#09090b]/50 p-4 rounded-xl border border-zinc-800/80 font-mono">
+                <div className="grid grid-cols-[60px_1fr] border-b border-zinc-800/40 pb-2">
+                  <span className="text-zinc-500 font-bold">From:</span>
+                  <span className="text-zinc-300">netcore.corporation@gmail.com (Company Mail)</span>
+                </div>
+                <div className="grid grid-cols-[60px_1fr] border-b border-zinc-800/40 pb-2">
+                  <span className="text-zinc-500 font-bold">To:</span>
+                  <span className="text-zinc-300 font-bold">{emailPreviewData.to}</span>
+                </div>
+                <div className="grid grid-cols-[60px_1fr] pb-1">
+                  <span className="text-zinc-500 font-bold">Subject:</span>
+                  <input
+                    type="text"
+                    value={emailPreviewData.subject}
+                    onChange={(e) => setEmailPreviewData({ ...emailPreviewData, subject: e.target.value })}
+                    className="bg-transparent border-none p-0 text-zinc-100 font-bold font-mono focus:outline-none w-full"
+                  />
+                </div>
+                {emailPreviewData.attachments && emailPreviewData.attachments.length > 0 && (
+                  <div className="grid grid-cols-[60px_1fr] border-t border-zinc-800/40 pt-2 flex items-start gap-1">
+                    <span className="text-zinc-500 font-bold mt-0.5">Files:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {emailPreviewData.attachments.map((file, i) => (
+                        <span key={i} className="text-[10px] bg-teal-500/10 text-teal-400 border border-teal-500/25 px-2 py-0.5 rounded-md flex items-center gap-1 font-sans font-bold">
+                          <Paperclip className="w-3 h-3 text-teal-400 shrink-0" />
+                          <span>{file}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Provider Selector for RATES template */}
+                {emailPreviewData.templateType === 'RATES' && emailPreviewData.availableProviders && emailPreviewData.availableProviders.length > 0 && (
+                  <div className="border-t border-zinc-800/40 pt-2.5 mt-2 space-y-1.5 font-sans">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-teal-400" />
+                        Select Provider(s) to Include in Rate Sheet:
+                      </span>
+                      <span className="text-[10px] text-zinc-500 font-mono flex items-center gap-1.5">
+                        {isUpdatingRates && (
+                          <span className="w-2.5 h-2.5 border-2 border-teal-400 border-t-transparent rounded-full animate-spin inline-block" />
+                        )}
+                        {emailPreviewData.selectedProviders?.length === emailPreviewData.availableProviders.length
+                          ? 'Showing All Providers'
+                          : `Active: ${emailPreviewData.selectedProviders?.join(', ')}`}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {(() => {
+                        const isAllSelected = emailPreviewData.selectedProviders?.length === emailPreviewData.availableProviders.length;
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleProviderFilter('ALL')}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                              isAllSelected
+                                ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 shadow-sm shadow-teal-500/10 font-extrabold'
+                                : 'bg-[#09090b] text-zinc-400 border-zinc-800 hover:text-zinc-200'
+                            }`}
+                          >
+                            All Providers
+                          </button>
+                        );
+                      })()}
+
+                      {emailPreviewData.availableProviders.map(p => {
+                        const isAllSelected = emailPreviewData.selectedProviders?.length === emailPreviewData.availableProviders?.length;
+                        const isThisSelected = emailPreviewData.selectedProviders?.includes(p) && !isAllSelected;
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => handleToggleProviderFilter(p)}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border flex items-center gap-1 ${
+                              isThisSelected
+                                ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 shadow-sm shadow-teal-500/10 font-extrabold'
+                                : 'bg-[#09090b] text-zinc-400 border-zinc-800 hover:text-zinc-200 hover:border-zinc-700'
+                            }`}
+                          >
+                            <span>{p}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2.5 flex flex-col flex-1 min-h-[350px]">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-1">
+                  <label className="text-[10px] uppercase font-bold text-zinc-500">Email Draft Body</label>
+                  <div className="flex bg-[#09090b] rounded-lg p-0.5 border border-zinc-800 text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setEmailPreviewTab('preview')}
+                      className={`px-3 py-1 rounded transition-colors cursor-pointer ${
+                        emailPreviewTab === 'preview'
+                          ? 'bg-zinc-850 text-white font-extrabold shadow-sm'
+                          : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      Visual Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEmailPreviewTab('html')}
+                      className={`px-3 py-1 rounded transition-colors cursor-pointer ${
+                        emailPreviewTab === 'html'
+                          ? 'bg-zinc-850 text-white font-extrabold shadow-sm'
+                          : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      Edit Source Code
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-grow min-h-0 flex flex-col">
+                  {emailPreviewTab === 'preview' ? (
+                    <div className="flex-grow bg-white rounded-xl p-5 border border-zinc-350 overflow-y-auto custom-scrollbar h-[320px] text-zinc-800 font-sans shadow-inner">
+                      <div dangerouslySetInnerHTML={{ __html: emailPreviewData.bodyHtml }} />
+                    </div>
+                  ) : (
+                    <textarea
+                      value={emailPreviewData.bodyHtml}
+                      onChange={(e) => {
+                        setEmailPreviewData({ 
+                          ...emailPreviewData, 
+                          bodyHtml: e.target.value,
+                          bodyText: e.target.value.replace(/<[^>]*>/g, '\n').replace(/\n\s*\n/g, '\n')
+                        });
+                      }}
+                      className="w-full bg-[#09090b] border border-zinc-800 rounded-xl p-3 font-mono text-[11px] text-zinc-300 focus:outline-none focus:border-teal-500 resize-none h-[320px] custom-scrollbar flex-grow"
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="px-6 py-4 border-t border-zinc-850 flex items-center justify-between bg-[#09090b]/10 shrink-0">
+              <p className="text-[10px] text-zinc-500 leading-normal max-w-[250px]">
+                The email will be sent automatically through the company SMTP mail server.
+              </p>
+              <div className="flex items-center space-x-3">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setIsEmailPreviewOpen(false);
+                    setEmailPreviewData(null);
+                  }}
+                  className="px-4 py-2 bg-[#09090b] border border-[#27272a] text-zinc-400 text-xs font-semibold rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                
+                {/* Server SMTP Send */}
+                <button 
+                  onClick={handleSendEmail}
+                  disabled={sendingEmail}
+                  className="px-4 py-2 bg-teal-500 text-zinc-950 text-xs font-bold rounded-lg hover:bg-teal-400 shadow-lg shadow-teal-500/5 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {sendingEmail ? (
+                    <span className="w-3.5 h-3.5 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  )}
+                  <span>Send</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Candidate Documents Viewer Modal */}
+      {isCandidateDocsOpen && selectedCandForDocs && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#09090b]/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#18181b] border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden animate-slideUp flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-[#09090b]/40 shrink-0">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-bold">
+                  <FolderOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-extrabold text-white flex items-center gap-2">
+                    <span>{selectedCandForDocs.firstName} {selectedCandForDocs.lastName}'s Onboarding Documents</span>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-950/50 text-blue-300 border border-blue-800/40">
+                      {candidateDocsList.length} / 6 Photos
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">{selectedCandForDocs.email} • State: {selectedCandForDocs.stateCode}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsCandidateDocsOpen(false);
+                  setSelectedCandForDocs(null);
+                }}
+                className="text-zinc-500 hover:text-zinc-300 transition-colors bg-transparent border-0 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1 text-xs">
+              {/* Candidate Upload Link Quick Copy Box */}
+              <div className="bg-[#09090b] border border-zinc-800 p-4 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider flex items-center gap-1.5">
+                    <Link className="w-3.5 h-3.5 text-blue-400" />
+                    Candidate One-Time Upload Link (6 Required Photos):
+                  </span>
+                  <span className="text-[10px] font-mono text-zinc-500">
+                    {candidateDocsList.length >= 6 ? '✅ Completed (6/6 Received)' : '⏳ Awaiting Upload'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={candidateUploadLink || 'Generating link...'}
+                    className="w-full bg-[#18181b] border border-zinc-800 rounded-lg px-3 py-1.5 font-mono text-[11px] text-zinc-300 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    disabled={!candidateUploadLink}
+                    onClick={() => {
+                      if (candidateUploadLink) {
+                        navigator.clipboard.writeText(candidateUploadLink);
+                        customAlert('Upload link copied to clipboard!', 'Success');
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-lg text-xs transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Link</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Documents Grid */}
+              <div className="space-y-3">
+                <h5 className="text-xs font-extrabold text-white flex items-center gap-2">
+                  <span>Uploaded Onboarding Files</span>
+                  {candidateDocsLoading && <span className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />}
+                </h5>
+
+                {candidateDocsLoading ? (
+                  <div className="p-8 text-center text-zinc-500 italic">Loading uploaded documents...</div>
+                ) : candidateDocsList.length === 0 ? (
+                  <div className="p-8 text-center text-zinc-500 italic bg-[#09090b] border border-zinc-800 rounded-xl space-y-2">
+                    <p className="text-xs text-zinc-400 font-bold">No documents uploaded yet.</p>
+                    <p className="text-[11px]">Send the document request email or share the copy link above with the candidate to gather their 6 photos.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {candidateDocsList.map(doc => {
+                      const docLabels: Record<string, string> = {
+                        DL_FRONT: 'DL Front',
+                        DL_BACK: 'DL Back',
+                        SSN: 'Social (SSN)',
+                        EAD_FRONT: 'EAD Front',
+                        EAD_BACK: 'EAD Back',
+                        BADGE_PHOTO: 'Photo for Badge',
+                      };
+                      const label = docLabels[doc.docType] || doc.docType || doc.name;
+
+                      return (
+                        <div key={doc.id} className="bg-[#09090b] border border-zinc-800 rounded-xl p-3 space-y-2.5 shadow-sm">
+                          <div className="relative rounded-lg overflow-hidden border border-zinc-800 h-32 bg-[#18181b] flex items-center justify-center">
+                            {doc.dataUrl?.startsWith('data:image') || doc.dataUrl?.endsWith('.png') || doc.dataUrl?.endsWith('.jpg') || doc.dataUrl?.endsWith('.jpeg') ? (
+                              <img src={doc.dataUrl} alt={label} className="w-full h-full object-cover" />
+                            ) : (
+                              <FileText className="w-10 h-10 text-zinc-500" />
+                            )}
+                          </div>
+
+                          <div className="space-y-1">
+                            <h6 className="text-xs font-extrabold text-white truncate">{label}</h6>
+                            <p className="text-[10px] text-zinc-500 font-mono">
+                              {(doc.size / 1024).toFixed(0)} KB • {new Date(doc.uploadedAt).toLocaleDateString()}
+                            </p>
+                          </div>
+
+                          <a
+                            href={doc.dataUrl}
+                            download={doc.name || 'document'}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+                            <span>View Full File</span>
+                          </a>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add State Modal (Triggered by New Project) */}
 
 
@@ -5283,12 +7448,51 @@ export default function Home() {
                 }`}
               >
                 <FileText className="w-3.5 h-3.5" /> Documents
-                {editingTech && customDocuments.filter(d => d.technicianId === editingTech.id).length > 0 && (
+                {editingTech && customDocuments.filter(d => d.technicianId === editingTech.id && d.category !== 'PAYMENT').length > 0 && (
                   <span className="bg-zinc-800 text-zinc-300 text-[9px] font-black px-1.5 py-0.5 rounded-full ml-0.5">
-                    {customDocuments.filter(d => d.technicianId === editingTech.id).length}
+                    {customDocuments.filter(d => d.technicianId === editingTech.id && d.category !== 'PAYMENT').length}
                   </span>
                 )}
               </button>
+              {editingTech && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setTechModalTab('payments')}
+                    className={`px-5 py-2.5 text-xs font-bold flex items-center gap-1.5 border-b-2 transition-colors ${
+                      techModalTab === 'payments'
+                        ? 'border-[#3b82f6] text-zinc-100'
+                        : 'border-transparent text-zinc-500 hover:text-slate-300'
+                    }`}
+                  >
+                    <DollarSign className="w-3.5 h-3.5" /> Payments
+                    {editingTech && customDocuments.filter(d => d.technicianId === editingTech.id && d.category === 'PAYMENT').length > 0 && (
+                      <span className="bg-[#10b981] text-white text-[9px] font-black px-1.5 py-0.5 rounded-full ml-0.5">
+                        {customDocuments.filter(d => d.technicianId === editingTech.id && d.category === 'PAYMENT').length}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTechModalTab('mobile_jobs');
+                      if (editingTech) fetchTechUploads(editingTech.id);
+                    }}
+                    className={`px-5 py-2.5 text-xs font-bold flex items-center gap-1.5 border-b-2 transition-colors ${
+                      techModalTab === 'mobile_jobs'
+                        ? 'border-[#3b82f6] text-zinc-100'
+                        : 'border-transparent text-zinc-500 hover:text-slate-300'
+                    }`}
+                  >
+                    <Wrench className="w-3.5 h-3.5" /> App Submissions
+                    {techUploads.length > 0 && (
+                      <span className="bg-teal-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full ml-0.5">
+                        {techUploads.length}
+                      </span>
+                    )}
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Form Container (Scrollable) — Profile Tab */}
@@ -5326,12 +7530,36 @@ export default function Home() {
                   <input 
                     type="email" 
                     required
-                    placeholder="name@netcoretelecom.com"
+                    placeholder="netcore.corporation@gmail.com"
                     value={techForm.email}
                     onChange={(e) => setTechForm({ ...techForm, email: e.target.value })}
                     className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-[#3b82f6] font-medium"
                   />
                 </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-zinc-400">App Login Username</label>
+                  <input 
+                    type="text" 
+                    placeholder="Username for app login"
+                    value={techForm.username || ""}
+                    onChange={(e) => setTechForm({ ...techForm, username: e.target.value })}
+                    className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-[#3b82f6] font-medium"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-zinc-400">App Login Password</label>
+                  <input 
+                    type="text" 
+                    placeholder="Password for app login"
+                    value={techForm.password || ""}
+                    onChange={(e) => setTechForm({ ...techForm, password: e.target.value })}
+                    className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-[#3b82f6] font-medium"
+                  />
+                </div>
+              </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] uppercase font-bold text-zinc-400">Base Operating State *</label>
@@ -5440,6 +7668,63 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* Assigned Provider Binding */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-zinc-400">Assigned Provider (Привязанный Провайдер)</label>
+                <select
+                  value={techForm.defaultProvider}
+                  onChange={(e) => setTechForm({ ...techForm, defaultProvider: e.target.value })}
+                  className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-[#3b82f6] cursor-pointer"
+                >
+                  <option value="">-- None (Use Job Provider or State Averages) --</option>
+                  {techStateProviders.map(prov => (
+                    <option key={prov} value={prov} className="bg-[#18181b]">{prov}</option>
+                  ))}
+                </select>
+                <p className="text-[9px] text-slate-600">If no custom payout % is set, system checks rate plans for this provider first before state averages.</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-zinc-400">Per Diem Override ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder={`Uses state default ($${(customStates.find(state => state.code === techForm.stateCode)?.employeePerDiem ?? 0).toFixed(2)})`}
+                  value={techForm.perDiemOverride}
+                  onChange={(e) => setTechForm({ ...techForm, perDiemOverride: e.target.value })}
+                  className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-[#3b82f6] font-mono placeholder:text-slate-600"
+                />
+                <p className="text-[9px] text-slate-600">Leave empty to use this technician&apos;s state per diem rate.</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-zinc-400">Car / Tools Ded. ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={techForm.carToolsDeduction}
+                    onChange={(e) => setTechForm({ ...techForm, carToolsDeduction: e.target.value })}
+                    className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-[#3b82f6] font-mono"
+                  />
+                  <p className="text-[9px] text-slate-600">Deduction charged to tech on statement.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-zinc-400">Company Tools Cost ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={techForm.companyToolsCost}
+                    onChange={(e) => setTechForm({ ...techForm, companyToolsCost: e.target.value })}
+                    className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-[#3b82f6] font-mono"
+                  />
+                  <p className="text-[9px] text-slate-600">Actual cost paid by company.</p>
+                </div>
+              </div>
+
               {/* Internal Notes / Remarks */}
               <div className="space-y-1.5">
                 <label className="text-[10px] uppercase font-bold text-zinc-400 flex items-center gap-1.5">
@@ -5487,7 +7772,7 @@ export default function Home() {
                     <p className="text-slate-600 text-xs mt-1">Documents can be added after creating the technician.</p>
                   </div>
                 ) : (() => {
-                  const techDocs = customDocuments.filter(d => d.technicianId === editingTech.id);
+                  const techDocs = customDocuments.filter(d => d.technicianId === editingTech.id && d.category !== 'PAYMENT');
                   const formatSize = (b: number) => b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`;
                   const getDocIcon = (fileType: string) => {
                     if (fileType.includes('pdf')) return '📄';
@@ -5611,6 +7896,359 @@ export default function Home() {
               </div>
             )}
 
+            {/* Payments Tab Panel */}
+            {techModalTab === 'payments' && (
+              <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
+                {!editingTech ? (
+                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                    <DollarSign className="w-10 h-10 text-slate-600 mb-3" />
+                    <p className="text-zinc-400 font-semibold text-sm">Save the profile first</p>
+                  </div>
+                ) : (() => {
+                  const tech = editingTech;
+                  if (!tech) return null;
+                  const payments = customDocuments.filter(d => d.technicianId === tech.id && d.category === 'PAYMENT');
+                  const formatSize = (b: number) => b < 1024 ? `${b} B` : `${(b / 1024).toFixed(0)} KB`;
+                  return (
+                    <>
+                      {/* Statement list */}
+                      <div className="flex-grow p-5 overflow-y-auto custom-scrollbar min-h-[300px]">
+                        {payments.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <FileText className="w-8 h-8 text-zinc-700 mb-3" />
+                            <p className="text-zinc-500 text-xs font-medium">No payroll statements generated yet</p>
+                            <p className="text-slate-600 text-[10px] mt-1">Weekly statements will automatically generate here when you import payroll.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {payments.map(doc => (
+                              <div key={doc.id} className="flex items-center justify-between p-3 bg-[#09090b]/60 border border-zinc-800/60 rounded-lg hover:border-zinc-700/60 transition-colors group">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="text-xl shrink-0">📊</div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold text-zinc-200 truncate">{doc.name}</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8.5px] font-bold uppercase px-1.5 py-0.5 rounded">
+                                        STATEMENT
+                                      </span>
+                                      <span className="text-[9px] text-slate-600 font-mono">{formatSize(doc.size)}</span>
+                                      <span className="text-[9px] text-slate-600">
+                                        {new Date(doc.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewStatement(doc)}
+                                    className="p-1.5 text-zinc-300 hover:bg-zinc-800/30 rounded transition-colors cursor-pointer"
+                                    title="View Statement Breakdown"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadDocument(doc)}
+                                    className="p-1.5 text-zinc-300 hover:bg-zinc-800/30 rounded transition-colors cursor-pointer"
+                                    title="Download CSV"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      const text = decodeCsvContent(doc.dataUrl);
+                                      try {
+                                        await navigator.clipboard.writeText(text);
+                                        await customAlert('Statement rows copied to clipboard successfully!', 'Success');
+                                      } catch (err) {
+                                        console.error(err);
+                                        await customAlert('Failed to copy rows to clipboard.', 'Error');
+                                      }
+                                    }}
+                                    className="p-1.5 text-zinc-300 hover:bg-zinc-800/30 rounded transition-colors cursor-pointer"
+                                    title="Copy TSV Rows to Clipboard"
+                                  >
+                                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteDocument(doc.id)}
+                                    className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded transition-colors cursor-pointer"
+                                    title="Delete"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer */}
+                      <div className="flex items-center justify-between px-5 py-3 border-t border-zinc-800 bg-[#09090b]/20 shrink-0">
+                        <p className="text-[9px] text-slate-600">{payments.length} statement{payments.length !== 1 ? 's' : ''} total</p>
+                        <button
+                          type="button"
+                          onClick={() => setIsTechModalOpen(false)}
+                          className="px-4 py-2 bg-[#09090b] border border-[#27272a] text-zinc-400 text-xs font-semibold rounded-md hover:bg-slate-800 transition-colors cursor-pointer"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Mobile App Jobs Tab Panel */}
+            {techModalTab === 'mobile_jobs' && (
+              <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
+                {!editingTech ? (
+                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                    <Wrench className="w-10 h-10 text-zinc-600 mb-3" />
+                    <p className="text-zinc-400 font-semibold text-sm">Save profile first</p>
+                  </div>
+                ) : (() => {
+                  const startOfToday = new Date();
+                  startOfToday.setHours(0, 0, 0, 0);
+
+                  const startOfMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1);
+
+                  const filteredUploads = techUploads.filter(u => {
+                    const uDate = new Date(u.createdAt);
+                    if (mobileJobsDateFilter === 'TODAY') {
+                      return uDate >= startOfToday;
+                    } else if (mobileJobsDateFilter !== 'ALL' && mobileJobsDateFilter) {
+                      const isoStr = uDate.toISOString().split('T')[0];
+                      const localStr = `${uDate.getFullYear()}-${String(uDate.getMonth() + 1).padStart(2, '0')}-${String(uDate.getDate()).padStart(2, '0')}`;
+                      return isoStr === mobileJobsDateFilter || localStr === mobileJobsDateFilter;
+                    }
+                    return true;
+                  });
+
+                  const todayCount = techUploadStats.todayCount || techUploads.filter(u => new Date(u.createdAt) >= startOfToday).length;
+                  const monthCount = techUploadStats.monthCount || techUploads.filter(u => new Date(u.createdAt) >= startOfMonth).length;
+                  
+                  const uniqueDaysSet = new Set(techUploads.map(u => new Date(u.createdAt).toISOString().split('T')[0]));
+                  const distinctDays = uniqueDaysSet.size;
+                  const avgPerDay = techUploadStats.avgPerDay || (distinctDays > 0 ? (techUploads.length / distinctDays).toFixed(1) : '0');
+
+                  return (
+                    <>
+                      {/* Daily Stats Summary Banner - 4 Key Stats */}
+                      <div className="p-3.5 bg-[#09090b]/90 border-b border-zinc-800/80 grid grid-cols-2 md:grid-cols-4 gap-2.5 shrink-0">
+                        {/* Today's Count */}
+                        <div className="bg-[#18181b] border border-zinc-800 rounded-xl p-3 flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                          </div>
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider block">Today</span>
+                            <div className="text-sm font-bold text-emerald-400 mt-0.5 font-mono">
+                              {todayCount} today
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* This Month */}
+                        <div className="bg-[#18181b] border border-zinc-800 rounded-xl p-3 flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-zinc-800/90 border border-zinc-700 flex items-center justify-center text-zinc-300 shrink-0">
+                            <Calendar className="w-3.5 h-3.5 text-zinc-300" />
+                          </div>
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider block">This Month</span>
+                            <div className="text-sm font-bold text-zinc-100 mt-0.5 font-mono">
+                              {monthCount} month
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Daily Average */}
+                        <div className="bg-[#18181b] border border-zinc-800 rounded-xl p-3 flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-zinc-800/90 border border-zinc-700 flex items-center justify-center text-zinc-300 shrink-0">
+                            <TrendingUp className="w-3.5 h-3.5 text-zinc-300" />
+                          </div>
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider block">Daily Avg</span>
+                            <div className="text-sm font-bold text-zinc-100 mt-0.5 font-mono">
+                              {avgPerDay} / day
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Total Submissions */}
+                        <div className="bg-[#18181b] border border-zinc-800 rounded-xl p-3 flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-zinc-800/90 border border-zinc-700 flex items-center justify-center text-zinc-300 shrink-0">
+                            <Wrench className="w-3.5 h-3.5 text-zinc-300" />
+                          </div>
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider block">Total Jobs</span>
+                            <div className="text-sm font-bold text-zinc-100 mt-0.5 font-mono">
+                              {filteredUploads.length} jobs
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Filter Bar & Controls */}
+                      <div className="px-5 pt-3.5 pb-2 flex items-center justify-between border-b border-zinc-800/50 bg-[#09090b]/40 font-sans">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-zinc-400" />
+                            Filter by Date:
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMobileJobsDateFilter('ALL');
+                                setCustomSelectedDate('');
+                              }}
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer border ${
+                                mobileJobsDateFilter === 'ALL'
+                                  ? 'bg-zinc-800 text-zinc-100 border-zinc-700 shadow-sm'
+                                  : 'bg-[#09090b] text-zinc-400 border-zinc-800 hover:text-zinc-200'
+                              }`}
+                            >
+                              All Time
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMobileJobsDateFilter('TODAY');
+                                setCustomSelectedDate('');
+                              }}
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer border ${
+                                mobileJobsDateFilter === 'TODAY'
+                                  ? 'bg-zinc-800 text-zinc-100 border-zinc-700 shadow-sm'
+                                  : 'bg-[#09090b] text-zinc-400 border-zinc-800 hover:text-zinc-200'
+                              }`}
+                            >
+                              Today
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Custom Date Input */}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-zinc-500 font-semibold">Select Date:</span>
+                          <input
+                            type="date"
+                            value={customSelectedDate}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setCustomSelectedDate(val);
+                              setMobileJobsDateFilter(val || 'ALL');
+                            }}
+                            className="bg-[#09090b] border border-zinc-800 text-zinc-200 text-xs px-2 py-0.5 rounded-md focus:outline-none focus:border-zinc-600 font-mono cursor-pointer"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Jobs Grid / Clean Card List without Screenshots */}
+                      <div className="flex-grow p-5 overflow-y-auto custom-scrollbar min-h-[300px]">
+                        {loadingUploads ? (
+                          <div className="flex items-center justify-center py-12 text-zinc-500 text-xs font-semibold gap-2">
+                            <div className="w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
+                            Loading submissions...
+                          </div>
+                        ) : filteredUploads.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <Wrench className="w-8 h-8 text-zinc-700 mb-3" />
+                            <p className="text-zinc-400 text-xs font-semibold">No submissions found for selected filter</p>
+                            <p className="text-zinc-600 text-[10px] mt-1">Try selecting "All Time" or picking a different date.</p>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                            {filteredUploads.map(upload => {
+                              const createdDate = new Date(upload.createdAt);
+                              const isToday = createdDate >= startOfToday;
+                              const payout = Number(upload.payoutAmount || 0);
+
+                              return (
+                                <div key={upload.id} className="p-3.5 bg-[#18181b] border border-zinc-800 rounded-xl hover:border-zinc-700 transition-all space-y-2 group">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-zinc-100 font-mono">
+                                      {upload.jobNumber.startsWith('Job') ? upload.jobNumber : `Job #${upload.jobNumber}`}
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      {upload.sourceLabel && (
+                                        <span className="bg-zinc-800/90 text-zinc-400 border border-zinc-700 text-[9px] font-medium px-1.5 py-0.5 rounded font-mono">
+                                          {upload.sourceLabel}
+                                        </span>
+                                      )}
+                                      {isToday && (
+                                        <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded">
+                                          Today
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-between text-[10px] text-zinc-400 font-mono">
+                                    <div className="flex items-center gap-2">
+                                      <span>{createdDate.toLocaleDateString()}</span>
+                                      <span>{createdDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </div>
+                                    {payout > 0 && (
+                                      <span className="text-emerald-400 font-bold font-mono">${payout.toFixed(2)}</span>
+                                    )}
+                                  </div>
+
+                                  {upload.rawText && (
+                                    <p className="text-[9.5px] text-zinc-400 font-mono truncate bg-[#09090b] p-1.5 rounded border border-zinc-800/60">
+                                      {upload.rawText}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer */}
+                      <div className="flex items-center justify-between px-5 py-3 border-t border-zinc-800 bg-[#09090b]/20 shrink-0">
+                        <p className="text-[9px] text-slate-600">{techUploads.length} submission{techUploads.length !== 1 ? 's' : ''} recorded</p>
+                        <button
+                          type="button"
+                          onClick={() => setIsTechModalOpen(false)}
+                          className="px-4 py-2 bg-[#09090b] border border-[#27272a] text-zinc-400 text-xs font-semibold rounded-md hover:bg-slate-800 transition-colors cursor-pointer"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
+
+      {/* Screenshot Fullsize Preview Modal */}
+      {previewScreenshotUrl && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn" onClick={() => setPreviewScreenshotUrl(null)}>
+          <div className="relative max-w-3xl max-h-[90vh] bg-[#18181b] border border-zinc-800 rounded-xl overflow-hidden shadow-2xl p-2" onClick={e => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setPreviewScreenshotUrl(null)}
+              className="absolute top-4 right-4 z-10 p-2 bg-black/60 hover:bg-black/90 text-white rounded-full transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img 
+              src={previewScreenshotUrl} 
+              alt="Screenshot Preview" 
+              className="max-h-[82vh] w-auto object-contain rounded-lg mx-auto"
+            />
           </div>
         </div>
       )}
@@ -5998,9 +8636,393 @@ export default function Home() {
         </div>
       )}
 
-      {/* Custom Dialog Modal */}
+
+
+  {/* Statement Preview Modal */}
+  {previewStatement && (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[#09090b]/80 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-[#18181b] border border-zinc-800 rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden animate-slideUp flex flex-col max-h-[85vh]">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-[#09090b]/10 shrink-0">
+          <div>
+            <h4 className="text-sm font-bold text-slate-100 tracking-wide flex items-center gap-2">
+              <span>📄 Payout Invoice Statement</span>
+            </h4>
+            <p className="text-[10px] text-zinc-500 mt-0.5">{previewStatement.name}</p>
+          </div>
+          <button 
+            onClick={() => setPreviewStatement(null)}
+            className="text-zinc-400 hover:text-zinc-200 p-1.5 rounded-full hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar text-xs">
+          {(() => {
+            const stmt = previewStatement;
+            if (!stmt) return null;
+            const csvText = decodeCsvContent(stmt.dataUrl);
+            const lines = csvText.split('\n').map((l: string) => l.trim()).filter(Boolean);
+            
+            // Parse sections from flat layout
+            let techName = '';
+            let period = '';
+            let date = '';
+            const jobs: any[] = [];
+            
+            let payoutSubtotal = 0;
+            let pdVal = 0;
+            let carVal = 0;
+            let hotelVal = 0;
+            const dates: Date[] = [];
+
+            const parseCsvLine = (lineStr: string): string[] => {
+              if (lineStr.includes('\t')) {
+                return lineStr.split('\t').map(c => c.replace(/^"|"$/g, '').trim());
+              }
+              const result: string[] = [];
+              let cur = '';
+              let inQuotes = false;
+              for (let i = 0; i < lineStr.length; i++) {
+                const char = lineStr[i];
+                if (char === '"') {
+                  inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                  result.push(cur.replace(/^"|"$/g, '').trim());
+                  cur = '';
+                } else {
+                  cur += char;
+                }
+              }
+              result.push(cur.replace(/^"|"$/g, '').trim());
+              return result;
+            };
+
+            const extractLastNumber = (cells: string[]): number => {
+              for (let i = cells.length - 1; i >= 0; i--) {
+                const cell = cells[i];
+                if (!cell) continue;
+                const clean = cell.replace('$', '').replace(/[\s\t]/g, '').replace(',', '.');
+                const num = parseFloat(clean);
+                if (!isNaN(num)) return num;
+              }
+              return 0;
+            };
+
+            lines.forEach((line: string) => {
+              const cells = parseCsvLine(line);
+              if (cells.length === 0) return;
+
+              const lineLower = line.toLowerCase();
+
+              // Check summary rows
+              if (lineLower.includes('per diem') || lineLower.includes('perdiem')) {
+                pdVal = extractLastNumber(cells);
+                return;
+              }
+              if (lineLower.includes('tools and car') || lineLower.includes('car / tools') || lineLower.includes('car tools') || lineLower.includes('tools & car')) {
+                carVal = Math.abs(extractLastNumber(cells));
+                return;
+              }
+              if (lineLower.includes('hotel deduction') || lineLower.includes('hotel')) {
+                hotelVal = Math.abs(extractLastNumber(cells));
+                return;
+              }
+              if (lineLower.includes('total') || lineLower.includes('net technician payout')) {
+                return;
+              }
+
+              // Normal job row
+              if (cells.length < 5) return;
+
+              const rowDateStr = cells[0];
+              const rowDateObj = new Date(/^\d{4}-\d{2}-\d{2}$/.test(rowDateStr) ? `${rowDateStr}T00:00:00` : rowDateStr);
+              if (!isNaN(rowDateObj.getTime())) {
+                dates.push(rowDateObj);
+              }
+
+              if (!techName && cells[1]) {
+                let raw = cells[1].trim();
+                raw = raw.replace(/^\d+\s+/, '');
+                const matchedTech = customTechnicians.find(t => raw.toLowerCase().includes(t.name.toLowerCase()));
+                techName = matchedTech ? matchedTech.name : raw;
+              }
+
+              const jobRef = cells[4] || cells[2] || '-';
+              const provider = cells[2] || 'Spectrum';
+              const city = cells[7] || '-';
+              const state = cells[8] || '-';
+              const code = cells[10] || cells[3] || '-';
+              const desc = cells[11] || '-';
+              const qty = parseInt(cells[12]) || 1;
+              const payoutStr = (cells[13] || cells[cells.length - 1] || '0').replace('$', '').replace(/[\s\t]/g, '').replace(',', '.');
+              const payoutVal = parseFloat(payoutStr) || 0;
+
+              if (code !== 'PERDIEM' && code !== 'CARDED' && code !== 'HOTELDED') {
+                payoutSubtotal += payoutVal * qty;
+                jobs.push({
+                  date: rowDateStr,
+                  jobId: jobRef,
+                  provider: provider,
+                  city: city,
+                  state: state,
+                  code: code,
+                  desc: desc,
+                  qty: qty,
+                  payout: payoutVal
+                });
+              }
+            });
+
+            if (!techName && stmt.name) {
+              const fileTechName = stmt.name.replace(/^\d{2}\.\d{2}\.\d{4}\s+/, '').replace(/\.csv$/i, '');
+              const matchedTech = customTechnicians.find(t => fileTechName.toLowerCase().includes(t.name.toLowerCase()));
+              techName = matchedTech ? matchedTech.name : fileTechName;
+            }
+
+            if (dates.length > 0) {
+              const maxDateObj = new Date(Math.max(...dates.map(d => d.getTime())));
+              const minDateObj = new Date(Math.min(...dates.map(d => d.getTime())));
+              
+              const formatPreviewDateStr = (d: Date) => {
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const year = d.getFullYear();
+                return `${month}.${day}.${year}`;
+              };
+              period = `${formatPreviewDateStr(minDateObj)} - ${formatPreviewDateStr(maxDateObj)}`;
+              date = formatPreviewDateStr(new Date(stmt.uploadedAt || new Date()));
+            }
+
+            const netPayout = payoutSubtotal + pdVal - carVal - hotelVal;
+
+            return (
+              <div className="space-y-6">
+                {/* Header Summary */}
+                <div className="grid grid-cols-3 gap-4 bg-[#09090b]/40 border border-zinc-800/60 p-4 rounded-xl">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-zinc-500 block">Technician Name</span>
+                    <span className="text-sm font-bold text-zinc-100 mt-1 block">{techName}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-zinc-500 block">Statement Period</span>
+                    <span className="text-xs font-semibold text-zinc-300 mt-1 block">{period}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-zinc-500 block">Statement Date</span>
+                    <span className="text-xs font-semibold text-zinc-300 mt-1 block">{date}</span>
+                  </div>
+                </div>
+
+                {/* Jobs Table */}
+                <div className="space-y-2">
+                  <h5 className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Itemized Job Details</h5>
+                  <div className="border border-zinc-800/80 rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto max-h-[250px] custom-scrollbar">
+                      <table className="w-full text-left border-collapse text-[11px]">
+                        <thead className="bg-[#09090b] sticky top-0 border-b border-zinc-800">
+                          <tr className="text-zinc-500 font-bold uppercase tracking-wider text-[9px]">
+                            <th className="py-2.5 px-3">Date</th>
+                            <th className="py-2.5 px-3">Job ID</th>
+                            <th className="py-2.5 px-3">Client</th>
+                            <th className="py-2.5 px-3">Location</th>
+                            <th className="py-2.5 px-3 text-center">Code</th>
+                            <th className="py-2.5 px-3 text-center">Qty</th>
+                            <th className="py-2.5 px-3 text-right text-zinc-300 font-bold">Tech Pay</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-800/40 text-slate-300">
+                          {jobs.map((job, idx) => (
+                            <tr key={idx} className="hover:bg-slate-800/10 transition-colors">
+                              <td className="py-2 px-3 font-mono">{job.date}</td>
+                              <td className="py-2 px-3 font-mono text-zinc-500">#{job.jobId}</td>
+                              <td className="py-2 px-3 font-semibold">{job.provider}</td>
+                              <td className="py-2 px-3 text-zinc-400 truncate max-w-[120px]" title={job.desc}>{job.city}, {job.state}</td>
+                              <td className="py-2 px-3 text-center font-mono font-bold text-zinc-400">{job.code}</td>
+                              <td className="py-2 px-3 text-center font-mono">{job.qty}</td>
+                              <td className="py-2 px-3 text-right font-mono font-bold text-emerald-400">${job.payout.toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Financial Summary */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-zinc-800">
+                  <div></div>
+                  <div className="bg-[#09090b]/40 border border-zinc-800/80 p-5 rounded-xl space-y-2.5">
+                    <h5 className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider border-b border-zinc-800 pb-2 mb-2">Statement Summary</h5>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-zinc-500 font-semibold">Technician Payout Subtotal:</span>
+                      <span className="font-mono font-bold text-zinc-200">${payoutSubtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-zinc-500 font-semibold">Per Diem Payout:</span>
+                      <span className="font-mono font-bold text-zinc-200">${pdVal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-zinc-500 font-semibold">Tools and Car:</span>
+                      <span className="font-mono font-bold text-zinc-200">-${carVal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-zinc-500 font-semibold">Hotel Deduction:</span>
+                      <span className="font-mono font-bold text-zinc-200">-${hotelVal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm border-t border-zinc-800 pt-2.5 mt-2.5">
+                      <span className="font-black text-slate-100">NET TECHNICIAN PAYOUT:</span>
+                      <span className="font-mono font-black text-emerald-400 text-base">${netPayout.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-zinc-800 bg-[#09090b]/20 flex justify-end shrink-0">
+          <button 
+            type="button"
+            onClick={() => setPreviewStatement(null)}
+            className="bg-zinc-100 hover:bg-zinc-200 text-zinc-950 font-extrabold text-xs px-5 py-2 rounded-lg cursor-pointer transition-all"
+          >
+            Close Statement
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+
+      {/* Ticket Details Modal */}
+      {isTicketModalOpen && selectedTicket && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-2xl bg-[#1a1c23] border border-[#2c2f38] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-[#2c2f38] flex items-center justify-between bg-[#121316]">
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 rounded-full bg-[#1a73e8]/15 border border-[#1a73e8]/30 text-[#4285f4] flex items-center justify-center">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">{selectedTicket.subject || 'Ticket Details'}</h3>
+                  <p className="text-xs text-zinc-400">
+                    Received {new Date(selectedTicket.createdAt).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsTicketModalOpen(false)}
+                className="text-zinc-400 hover:text-white p-1 rounded-full hover:bg-zinc-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto space-y-6 custom-scrollbar text-xs">
+              {/* Contact Information Bar */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-[#121316] border border-[#2c2f38]">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-zinc-500 block">Sender Name</span>
+                  <span className="font-bold text-white text-sm">{selectedTicket.name}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-zinc-500 block">Email Address</span>
+                  <a href={`mailto:${selectedTicket.email}`} className="font-bold text-[#4285f4] hover:underline">
+                    {selectedTicket.email}
+                  </a>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-zinc-500 block">Phone Number</span>
+                  {selectedTicket.phone ? (
+                    <a href={`tel:${selectedTicket.phone}`} className="font-bold text-emerald-400 hover:underline">
+                      {selectedTicket.phone}
+                    </a>
+                  ) : (
+                    <span className="text-zinc-500 italic">Not Provided</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Message Body */}
+              <div className="space-y-2">
+                <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Inquiry / Message Content</span>
+                <div className="p-4 rounded-xl bg-[#121316] border border-[#2c2f38] text-zinc-200 whitespace-pre-wrap font-sans leading-relaxed text-xs">
+                  {selectedTicket.message}
+                </div>
+              </div>
+
+              {/* Status Selector */}
+              <div className="flex items-center justify-between p-4 rounded-xl bg-[#121316] border border-[#2c2f38]">
+                <span className="font-bold text-white">Current Ticket Status:</span>
+                <div className="flex items-center space-x-2">
+                  {['NEW', 'IN_PROGRESS', 'RESOLVED', 'ARCHIVED'].map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => handleUpdateTicketStatus(selectedTicket.id, st)}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+                        selectedTicket.status === st
+                          ? 'bg-[#1a73e8] text-white shadow-sm'
+                          : 'bg-[#1e2029] text-zinc-400 hover:text-white border border-[#2c2f38]'
+                      }`}
+                    >
+                      {st.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Internal CRM Admin Notes */}
+              <div className="space-y-2">
+                <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Internal Admin Notes</span>
+                <textarea
+                  rows={3}
+                  value={ticketNotes}
+                  onChange={(e) => setTicketNotes(e.target.value)}
+                  placeholder="Add internal notes or response tracking details here..."
+                  className="w-full bg-[#121316] border border-[#2c2f38] rounded-xl p-3 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#1a73e8]"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveTicketNotes}
+                  className="netcore-btn-primary py-1.5 px-4 text-xs font-bold"
+                >
+                  Save Internal Notes
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 border-t border-[#2c2f38] bg-[#121316] flex justify-between items-center">
+              <button
+                type="button"
+                onClick={() => handleDeleteTicket(selectedTicket.id)}
+                className="text-rose-400 hover:text-rose-300 font-bold text-xs flex items-center space-x-1"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Ticket</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsTicketModalOpen(false)}
+                className="netcore-btn-outline py-1.5 px-5 text-xs"
+              >
+                Close Drawer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Dialog Modal (Z-Index 100 - Always On Top of All Drawers) */}
       {dialog.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
           <div className="w-full max-w-sm bg-[#18181b] border border-zinc-800 rounded-xl p-5 shadow-2xl space-y-5">
             <div className="space-y-2">
               <h3 className="text-sm font-bold text-white tracking-wide">

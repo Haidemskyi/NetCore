@@ -32,7 +32,7 @@ export async function POST(req: Request) {
           id: 999,
           name: 'Unknown Technician',
           phone: '000-000-0000',
-          email: 'unknown@netcore.com',
+          email: 'netcore.corporation@gmail.com',
           status: 'ACTIVE',
           workType: 'BURY',
           stateId: defaultState.id,
@@ -59,6 +59,7 @@ export async function POST(req: Request) {
     }
 
     const createdJobs = [];
+    const batchId = `batch-${Date.now()}`;
 
     // 2. Process and insert each job
     for (const job of parsedJobs) {
@@ -93,7 +94,7 @@ export async function POST(req: Request) {
 
         let city = await prisma.city.findFirst({
           where: {
-            name: { equals: cityName, mode: 'insensitive' },
+            name: cityName,
             stateId: targetStateId,
           },
         });
@@ -121,6 +122,7 @@ export async function POST(req: Request) {
           companyRevenue,
           techPayout,
           companyProfit,
+          batchId,
         },
         include: {
           technician: {
@@ -145,6 +147,7 @@ export async function POST(req: Request) {
         companyRevenue: Number(newJob.companyRevenue),
         techPayout: Number(newJob.techPayout),
         companyProfit: Number(newJob.companyProfit),
+        batchId,
       });
     }
 

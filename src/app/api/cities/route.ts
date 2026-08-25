@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     // Check if city already exists in this state
     let city = await prisma.city.findFirst({
       where: {
-        name: { equals: name, mode: 'insensitive' },
+        name: name,
         stateId: stateObj.id,
       },
     });

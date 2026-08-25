@@ -61,6 +61,13 @@ export default function BulkRateImportModal({
   const [selectedCityName, setSelectedCityName] = useState('');
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('side_by_side');
   
+  useEffect(() => {
+    if (isOpen) {
+      setStateCode(defaultStateCode);
+      setSelectedCityName('');
+    }
+  }, [isOpen, defaultStateCode]);
+
   // Inline Add geography states
   const [isAddingState, setIsAddingState] = useState(false);
   const [newStateCode, setNewStateCode] = useState('');

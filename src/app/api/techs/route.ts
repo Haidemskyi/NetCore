@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 
 export async function POST(req: Request) {
   try {
-    const { name, phone, email, status, workType, stateCode, payoutType, payoutValue, notes, vehicleId } = await req.json();
+    const { name, phone, email, status, workType, stateCode, payoutType, payoutValue, perDiemOverride, carToolsDeduction, companyToolsCost, defaultProvider, notes, vehicleId, username, password } = await req.json();
 
     // Look up state by code
     const stateObj = await prisma.state.findUnique({
@@ -17,11 +17,17 @@ export async function POST(req: Request) {
         name,
         phone,
         email,
+        username: username || null,
+        password: password || null,
         status: status || 'ACTIVE',
         workType: workType || 'BURY',
         stateId,
         payoutType: payoutType || 'PERCENTAGE',
         payoutValue: Number(payoutValue) || 8.00,
+        perDiemOverride: perDiemOverride != null && perDiemOverride !== '' ? Number(perDiemOverride) : null,
+        carToolsDeduction: Number(carToolsDeduction) || 0,
+        companyToolsCost: Number(companyToolsCost) || 0,
+        defaultProvider: defaultProvider || null,
         notes: notes || null,
       },
       include: {
@@ -52,12 +58,17 @@ export async function POST(req: Request) {
       name: t.name,
       phone: t.phone,
       email: t.email,
+      username: t.username ?? undefined,
       status: t.status,
       workType: t.workType,
       stateId: t.stateId,
       stateCode: t.state.code,
       payoutType: t.payoutType,
       payoutValue: Number(t.payoutValue),
+      perDiemOverride: t.perDiemOverride != null ? Number(t.perDiemOverride) : null,
+      carToolsDeduction: Number(t.carToolsDeduction),
+      companyToolsCost: Number(t.companyToolsCost),
+      defaultProvider: t.defaultProvider ?? undefined,
       notes: t.notes ?? undefined,
       vehicle: assignedVehicle ? {
         id: assignedVehicle.id,
@@ -79,7 +90,7 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const { id, name, phone, email, status, workType, stateCode, payoutType, payoutValue, notes, vehicleId } = await req.json();
+    const { id, name, phone, email, status, workType, stateCode, payoutType, payoutValue, perDiemOverride, carToolsDeduction, companyToolsCost, defaultProvider, notes, vehicleId, username, password } = await req.json();
 
     // Look up state by code
     const stateObj = await prisma.state.findUnique({
@@ -94,11 +105,17 @@ export async function PUT(req: Request) {
         name,
         phone,
         email,
+        username: username !== undefined ? (username || null) : undefined,
+        password: password !== undefined ? (password || null) : undefined,
         status,
         workType,
         stateId,
         payoutType,
         payoutValue: Number(payoutValue),
+        perDiemOverride: perDiemOverride != null && perDiemOverride !== '' ? Number(perDiemOverride) : null,
+        carToolsDeduction: Number(carToolsDeduction) || 0,
+        companyToolsCost: Number(companyToolsCost) || 0,
+        defaultProvider: defaultProvider || null,
         notes: notes || null,
       },
       include: {
@@ -130,12 +147,18 @@ export async function PUT(req: Request) {
       name: t.name,
       phone: t.phone,
       email: t.email,
+      username: t.username ?? undefined,
+      password: t.password ?? undefined,
       status: t.status,
       workType: t.workType,
       stateId: t.stateId,
       stateCode: t.state.code,
       payoutType: t.payoutType,
       payoutValue: Number(t.payoutValue),
+      perDiemOverride: t.perDiemOverride != null ? Number(t.perDiemOverride) : null,
+      carToolsDeduction: Number(t.carToolsDeduction),
+      companyToolsCost: Number(t.companyToolsCost),
+      defaultProvider: t.defaultProvider ?? undefined,
       notes: t.notes ?? undefined,
       vehicle: assignedVehicle ? {
         id: assignedVehicle.id,

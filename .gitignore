@@ -40,6 +40,16 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# backups and temporary files
+# backups, databases and temporary files
+backups/
 *.bak
 *page_vps.tsx
+*.tar.gz
+*.zip
+*.log
+*.db
+*.db-journal
+deploy_working.py
+upload_next_build.py
+fix_crm.py
+

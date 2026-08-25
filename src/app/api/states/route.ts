@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 
 export async function POST(req: Request) {
   try {
-    const { code, name } = await req.json();
+    const { code, name, defaultCut } = await req.json();
 
     const state = await prisma.state.upsert({
       where: { code: code.toUpperCase() },
@@ -11,6 +11,7 @@ export async function POST(req: Request) {
       create: {
         code: code.toUpperCase(),
         name,
+        defaultCut: defaultCut !== undefined ? Number(defaultCut) : undefined,
       },
     });
 
@@ -18,6 +19,7 @@ export async function POST(req: Request) {
       ...state,
       companyPerDiem: Number(state.companyPerDiem),
       employeePerDiem: Number(state.employeePerDiem),
+      defaultCut: Number(state.defaultCut),
     });
   } catch (error: any) {
     console.error('Error creating state:', error);
@@ -27,7 +29,7 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    const { code, requiredTechs, requirements, companyPerDiem, employeePerDiem } = await req.json();
+    const { code, requiredTechs, requirements, companyPerDiem, employeePerDiem, onboardingWaitTime, monthlySalary, description, vacancyCities, defaultCut } = await req.json();
 
     if (!code) {
       return NextResponse.json({ error: 'Missing state code' }, { status: 400 });
@@ -40,6 +42,11 @@ export async function PUT(req: Request) {
         requirements: requirements !== undefined ? requirements : undefined,
         companyPerDiem: companyPerDiem !== undefined ? Number(companyPerDiem) : undefined,
         employeePerDiem: employeePerDiem !== undefined ? Number(employeePerDiem) : undefined,
+        onboardingWaitTime: onboardingWaitTime !== undefined ? onboardingWaitTime : undefined,
+        monthlySalary: monthlySalary !== undefined ? monthlySalary : undefined,
+        description: description !== undefined ? description : undefined,
+        vacancyCities: vacancyCities !== undefined ? vacancyCities : undefined,
+        defaultCut: defaultCut !== undefined ? Number(defaultCut) : undefined,
       },
     });
 
@@ -47,6 +54,7 @@ export async function PUT(req: Request) {
       ...state,
       companyPerDiem: Number(state.companyPerDiem),
       employeePerDiem: Number(state.employeePerDiem),
+      defaultCut: Number(state.defaultCut),
     });
   } catch (error: any) {
     console.error('Error updating state:', error);
@@ -73,25 +81,19 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'State not found' }, { status: 404 });
     }
 
-    // Safely delete all cascade associations inside a transaction
-    await prisma.$transaction(async (tx) => {
-      const technicians = await tx.technician.findMany({
-        where: { stateId: state.id },
-        select: { id: true },
-      });
-      const techIds = technicians.map((t) => t.id);
+    // Safety Guard: Check if state has active technicians
+    const techCount = await prisma.technician.count({
+      where: { stateId: state.id },
+    });
 
-      // Disconnect fleet vehicles
-      await tx.vehicle.updateMany({
-        where: { technicianId: { in: techIds } },
-        data: { technicianId: null },
-      });
+    if (techCount > 0) {
+      return NextResponse.json({
+        error: `Cannot delete state ${stateCode} because it has ${techCount} active/assigned technicians. Please reassign or delete technicians first.`,
+      }, { status: 400 });
+    }
 
-      // Delete job logs associated with state's technicians
-      await tx.jobLog.deleteMany({
-        where: { technicianId: { in: techIds } },
-      });
-
+    // Safely delete state and non-employee associations inside a transaction
+    await prisma.$transaction(async (tx: any) => {
       // Delete job logs associated with state's cities
       await tx.jobLog.deleteMany({
         where: { city: { stateId: state.id } },
@@ -102,11 +104,7 @@ export async function DELETE(req: Request) {
         where: { ratePlan: { stateCode: stateCode } },
       });
 
-      // Delete technicians, rate plans, cities, and finally the state itself
-      await tx.technician.deleteMany({
-        where: { stateId: state.id },
-      });
-
+      // Delete rate plans, cities, and finally the state itself
       await tx.ratePlan.deleteMany({
         where: { stateCode: stateCode },
       });
