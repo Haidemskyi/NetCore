@@ -25,7 +25,9 @@ import {
   MessageSquare,
   ChevronRight,
   ExternalLink,
-  Calendar
+  Calendar,
+  Menu,
+  X
 } from 'lucide-react';
 
 interface TechUser {
@@ -172,6 +174,8 @@ export default function EmployeePortalDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'issues' | 'payroll' | 'knowledge'>('overview');
   const [lang, setLang] = useState<Lang>('en');
+
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Work Issues & Support Form state (Field Issues)
   const [jobNumberInput, setJobNumberInput] = useState('');
@@ -418,10 +422,10 @@ export default function EmployeePortalDashboard() {
           </div>
         </div>
 
-        {/* User Badge, Language Switcher & Logout */}
-        <div className="flex items-center space-x-3">
-          {/* Language Switcher */}
-          <div className="flex items-center bg-[#f1f3f4] border border-[#dadce0] rounded-full p-0.5 text-[11px] font-extrabold">
+        {/* User Badge, Language Switcher, Mobile Hamburger & Logout */}
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          {/* Language Switcher (Desktop) */}
+          <div className="hidden sm:flex items-center bg-[#f1f3f4] border border-[#dadce0] rounded-full p-0.5 text-[11px] font-extrabold">
             <button
               onClick={() => changeLanguage('en')}
               className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${
@@ -448,8 +452,8 @@ export default function EmployeePortalDashboard() {
             </button>
           </div>
 
-          <div className="flex items-center space-x-2.5 px-3 py-1.5 rounded-full bg-[#f1f3f4] border border-[#dadce0]">
-            <div className="w-7 h-7 rounded-full bg-[#1a73e8]/15 text-[#1a73e8] flex items-center justify-center font-bold text-xs">
+          <div className="flex items-center space-x-2 px-2.5 sm:px-3 py-1.5 rounded-full bg-[#f1f3f4] border border-[#dadce0]">
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#1a73e8]/15 text-[#1a73e8] flex items-center justify-center font-bold text-xs">
               {initials}
             </div>
             <div className="text-left hidden md:block">
@@ -461,15 +465,104 @@ export default function EmployeePortalDashboard() {
           <button
             onClick={handleLogout}
             title="Sign Out"
-            className="p-2 rounded-full border border-[#dadce0] text-[#5f6368] hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-all cursor-pointer"
+            className="p-2 rounded-full border border-[#dadce0] text-[#5f6368] hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-all cursor-pointer hidden sm:flex"
           >
             <LogOut className="w-4 h-4" />
+          </button>
+
+          {/* Mobile Hamburger Toggle Button (<640px) */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="sm:hidden p-2 rounded-full border border-[#dadce0] text-[#5f6368] hover:bg-[#f1f3f4] transition-all cursor-pointer"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5 text-[#202124]" /> : <Menu className="w-5 h-5 text-[#202124]" />}
           </button>
         </div>
       </header>
 
-      {/* 2. Navigation Tabs */}
-      <div className="bg-white border-b border-[#dadce0] px-4 sm:px-8">
+      {/* Mobile Drawer Menu (<640px) */}
+      {mobileMenuOpen && (
+        <div className="sm:hidden bg-white border-b border-[#dadce0] px-4 py-4 space-y-4 animate-fadeIn shadow-md">
+          {/* Mobile Language Switcher */}
+          <div className="flex items-center justify-between pb-3 border-b border-[#f1f3f4]">
+            <span className="text-xs font-bold text-[#5f6368]">Language / Мова:</span>
+            <div className="flex items-center bg-[#f1f3f4] border border-[#dadce0] rounded-full p-0.5 text-[11px] font-extrabold">
+              <button
+                onClick={() => { changeLanguage('en'); setMobileMenuOpen(false); }}
+                className={`px-3 py-1 rounded-full transition-all ${lang === 'en' ? 'bg-[#1a73e8] text-white' : 'text-[#5f6368]'}`}
+              >
+                EN
+              </button>
+              <button
+                onClick={() => { changeLanguage('ua'); setMobileMenuOpen(false); }}
+                className={`px-3 py-1 rounded-full transition-all ${lang === 'ua' ? 'bg-[#1a73e8] text-white' : 'text-[#5f6368]'}`}
+              >
+                UA
+              </button>
+              <button
+                onClick={() => { changeLanguage('ru'); setMobileMenuOpen(false); }}
+                className={`px-3 py-1 rounded-full transition-all ${lang === 'ru' ? 'bg-[#1a73e8] text-white' : 'text-[#5f6368]'}`}
+              >
+                RU
+              </button>
+            </div>
+          </div>
+
+          {/* Navigation Links */}
+          <div className="grid grid-cols-1 gap-2">
+            <button
+              onClick={() => { setActiveTab('overview'); setMobileMenuOpen(false); }}
+              className={`w-full py-2.5 px-4 text-xs font-bold rounded-xl text-left flex items-center space-x-3 ${
+                activeTab === 'overview' ? 'bg-[#e8f0fe] text-[#1a73e8]' : 'text-[#202124] bg-[#f8f9fa]'
+              }`}
+            >
+              <User className="w-4 h-4" />
+              <span>{t('tabOverview')}</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('issues'); setMobileMenuOpen(false); }}
+              className={`w-full py-2.5 px-4 text-xs font-bold rounded-xl text-left flex items-center space-x-3 ${
+                activeTab === 'issues' ? 'bg-[#e8f0fe] text-[#1a73e8]' : 'text-[#202124] bg-[#f8f9fa]'
+              }`}
+            >
+              <AlertCircle className="w-4 h-4 text-amber-600" />
+              <span>{t('tabIssues')}</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('payroll'); setMobileMenuOpen(false); }}
+              className={`w-full py-2.5 px-4 text-xs font-bold rounded-xl text-left flex items-center space-x-3 ${
+                activeTab === 'payroll' ? 'bg-[#e8f0fe] text-[#1a73e8]' : 'text-[#202124] bg-[#f8f9fa]'
+              }`}
+            >
+              <DollarSign className="w-4 h-4" />
+              <span>{t('tabPayroll')}</span>
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('knowledge'); setMobileMenuOpen(false); }}
+              className={`w-full py-2.5 px-4 text-xs font-bold rounded-xl text-left flex items-center space-x-3 ${
+                activeTab === 'knowledge' ? 'bg-[#e8f0fe] text-[#1a73e8]' : 'text-[#202124] bg-[#f8f9fa]'
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>{t('tabKnowledge')}</span>
+            </button>
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="w-full py-2.5 px-4 bg-red-50 text-red-600 font-bold text-xs rounded-xl flex items-center justify-center space-x-2 border border-red-100"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      )}
+
+      {/* 2. Desktop Navigation Tabs (Hidden on mobile) */}
+      <div className="bg-white border-b border-[#dadce0] px-4 sm:px-8 hidden sm:block">
         <div className="flex space-x-2 max-w-6xl mx-auto overflow-x-auto custom-scrollbar py-2">
           <button
             onClick={() => setActiveTab('overview')}
@@ -516,56 +609,56 @@ export default function EmployeePortalDashboard() {
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
-            <span>Knowledge Base</span>
+            <span>{t('tabKnowledge')}</span>
           </button>
         </div>
       </div>
 
       {/* 3. Main Dashboard Body Pane */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-8 space-y-6">
+      <main className="flex-1 max-w-6xl w-full mx-auto p-3.5 sm:p-8 space-y-6">
 
         {/* TAB 1: OVERVIEW & VEHICLE */}
         {activeTab === 'overview' && (
           <div className="space-y-6 animate-fadeIn">
             
-            {/* Stat Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white border border-[#dadce0] rounded-2xl p-5 shadow-sm space-y-2">
+            {/* Stat Cards (2x2 Grid Tiles below 640px) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+              <div className="bg-white border border-[#dadce0] rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-1.5 sm:space-y-2">
                 <div className="flex items-center justify-between text-[#5f6368]">
-                  <span className="text-xs font-bold uppercase tracking-wider">{t('region')}</span>
-                  <MapPin className="w-4 h-4 text-[#1a73e8]" />
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider">{t('region')}</span>
+                  <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#1a73e8]" />
                 </div>
-                <p className="text-xl font-black text-[#202124]">{user.state.name}</p>
-                <p className="text-[11px] text-[#5f6368] font-medium">State Code: {user.state.code}</p>
+                <p className="text-sm sm:text-xl font-black text-[#202124] truncate">{user.state.name}</p>
+                <p className="text-[9px] sm:text-[11px] text-[#5f6368] font-medium">State: {user.state.code}</p>
               </div>
 
-              <div className="bg-white border border-[#dadce0] rounded-2xl p-5 shadow-sm space-y-2">
+              <div className="bg-white border border-[#dadce0] rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-1.5 sm:space-y-2">
                 <div className="flex items-center justify-between text-[#5f6368]">
-                  <span className="text-xs font-bold uppercase tracking-wider">{t('perDiem')}</span>
-                  <DollarSign className="w-4 h-4 text-emerald-600" />
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider">{t('perDiem')}</span>
+                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
                 </div>
-                <p className="text-xl font-black text-emerald-700">${personalPerDiem.toFixed(2)} / day</p>
-                <p className="text-[11px] text-[#5f6368] font-medium">Assigned Profile Rate</p>
+                <p className="text-sm sm:text-xl font-black text-emerald-700">${personalPerDiem.toFixed(2)}/day</p>
+                <p className="text-[9px] sm:text-[11px] text-[#5f6368] font-medium">Daily Allowance</p>
               </div>
 
-              <div className="bg-white border border-[#dadce0] rounded-2xl p-5 shadow-sm space-y-2">
+              <div className="bg-white border border-[#dadce0] rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-1.5 sm:space-y-2">
                 <div className="flex items-center justify-between text-[#5f6368]">
-                  <span className="text-xs font-bold uppercase tracking-wider">{t('spec')}</span>
-                  <Briefcase className="w-4 h-4 text-amber-600" />
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider">{t('spec')}</span>
+                  <Briefcase className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600" />
                 </div>
-                <p className="text-xl font-black text-[#202124] capitalize">{user.workType.toLowerCase()} Spec</p>
-                <p className="text-[11px] text-[#5f6368] font-medium">Status: <span className="font-bold text-emerald-700">{user.status}</span></p>
+                <p className="text-sm sm:text-xl font-black text-[#202124] capitalize truncate">{user.workType.toLowerCase()} Spec</p>
+                <p className="text-[9px] sm:text-[11px] text-[#5f6368] font-medium">Status: <span className="font-bold text-emerald-700">{user.status}</span></p>
               </div>
 
-              <div className="bg-white border border-[#dadce0] rounded-2xl p-5 shadow-sm space-y-2">
+              <div className="bg-white border border-[#dadce0] rounded-2xl p-3.5 sm:p-5 shadow-sm space-y-1.5 sm:space-y-2">
                 <div className="flex items-center justify-between text-[#5f6368]">
-                  <span className="text-xs font-bold uppercase tracking-wider">Active Vehicle</span>
-                  <Truck className="w-4 h-4 text-[#1a73e8]" />
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider">Active Vehicle</span>
+                  <Truck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#1a73e8]" />
                 </div>
-                <p className="text-xl font-black text-[#202124]">
+                <p className="text-sm sm:text-xl font-black text-[#202124] truncate">
                   {user.activeVehicle ? `${user.activeVehicle.make} ${user.activeVehicle.model}` : 'Unassigned'}
                 </p>
-                <p className="text-[11px] text-[#5f6368] font-medium">
+                <p className="text-[9px] sm:text-[11px] text-[#5f6368] font-medium truncate">
                   Plate: {user.activeVehicle ? user.activeVehicle.plateNumber : 'N/A'}
                 </p>
               </div>
