@@ -89,11 +89,89 @@ interface StatementDoc {
   category: string;
 }
 
+type Lang = 'en' | 'ua' | 'ru';
+
+const DICTIONARY: Record<Lang, Record<string, string>> = {
+  en: {
+    tabOverview: 'Profile & Paystubs',
+    tabIssues: 'Work Issues & Support',
+    tabPayroll: 'Earnings & Weekly Rates',
+    tabKnowledge: 'Knowledge Base',
+    region: 'Assigned Region',
+    perDiem: 'Personal Per Diem',
+    spec: 'Specialization',
+    paystubsTitle: 'Paystubs & Weekly Statements',
+    paystubsSubtitle: 'Official weekly CSV & PDF paystubs uploaded from CRM Admin',
+    reportTitle: 'Report Work Issue / Problem',
+    reportSubtitle: 'Submit field problems, site access issues, or equipment failures directly to CRM Tickets & Dispatch',
+    jobNumLabel: 'Job Number / Work Order # (Optional)',
+    categoryLabel: 'Issue Category',
+    descLabel: 'Problem Description *',
+    photosLabel: 'Attach Photos / Screenshots (1 Required, Up to 4 Max) *',
+    submitIssue: 'Submit Issue to CRM Support',
+    downloadPdf: 'Download PDF Paystub Report',
+    myTicketsTitle: 'My Reported Issues in CRM',
+    completedJobs: 'Completed Orders History',
+    noPaystubs: 'No weekly statements uploaded yet. Your weekly paystub files from CRM will appear here automatically.',
+    noJobs: 'No completed jobs recorded yet.',
+    noTickets: 'No active work issues reported. Use the form above to submit any field problems.'
+  },
+  ua: {
+    tabOverview: 'Профіль та Пейстаби',
+    tabIssues: 'Проблеми з роботою та підтримка',
+    tabPayroll: 'Доходи та розцінки',
+    tabKnowledge: 'База знань',
+    region: 'Призначений регіон',
+    perDiem: 'Особистий Per Diem',
+    spec: 'Спеціалізація',
+    paystubsTitle: 'Зарплатні відомості (Paystubs)',
+    paystubsSubtitle: 'Офіційні тижневі відомості CSV та PDF, завантажені з CRM',
+    reportTitle: 'Повідомити про проблему з роботою',
+    reportSubtitle: 'Надішліть проблему на об’єкті або з обладнанням прямо в тикети CRM',
+    jobNumLabel: 'Номер замовлення / Work Order # (Опціонально)',
+    categoryLabel: 'Категорія проблеми',
+    descLabel: 'Опис проблеми *',
+    photosLabel: 'Прикріпити фото / скріншоти (Мін. 1 обов’язково, макс. 4) *',
+    submitIssue: 'Надіслати у підтримку CRM',
+    downloadPdf: 'Завантажити PDF Paystub',
+    myTicketsTitle: 'Мої повідомлення про проблеми в CRM',
+    completedJobs: 'Історія виконаних замовлень',
+    noPaystubs: 'Тижневі відомості ще не завантажені.',
+    noJobs: 'Виконаних замовлень поки немає.',
+    noTickets: 'Немає активних повідомлень про проблеми.'
+  },
+  ru: {
+    tabOverview: 'Профиль и Пейстабы',
+    tabIssues: 'Проблемы с работой и поддержка',
+    tabPayroll: 'Доходы и расценки',
+    tabKnowledge: 'База знаний',
+    region: 'Назначенный регион',
+    perDiem: 'Личный Per Diem',
+    spec: 'Специализация',
+    paystubsTitle: 'Зарплатные ведомости (Paystubs)',
+    paystubsSubtitle: 'Официальные недельные ведомости CSV и PDF, загруженные из CRM',
+    reportTitle: 'Сообщить о проблеме с работой',
+    reportSubtitle: 'Отправьте проблему на объекте или с оборудованием напрямую в тикеты CRM',
+    jobNumLabel: 'Номер заказа / Work Order # (Опционально)',
+    categoryLabel: 'Категория проблемы',
+    descLabel: 'Описание проблемы *',
+    photosLabel: 'Прикрепить фото / скриншоты (Мин. 1 обязательно, макс. 4) *',
+    submitIssue: 'Отправить в поддержку CRM',
+    downloadPdf: 'Скачать PDF Paystub',
+    myTicketsTitle: 'Мои сообщения о проблемах в CRM',
+    completedJobs: 'История выполненных заказов',
+    noPaystubs: 'Недельные ведомости еще не загружены.',
+    noJobs: 'Выполненных заказов пока нет.',
+    noTickets: 'Нет активных сообщений о проблемах.'
+  }
+};
+
 export default function EmployeePortalDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<TechUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'issues' | 'payroll' | 'knowledge'>('overview');
+  const [lang, setLang] = useState<Lang>('en');
 
   // Work Issues & Support Form state (Field Issues)
   const [jobNumberInput, setJobNumberInput] = useState('');
@@ -111,9 +189,22 @@ export default function EmployeePortalDashboard() {
   const [articles, setArticles] = useState<Array<{ id: string; title: string; category: string; content: string; author: string; createdAt: string }>>([]);
 
   useEffect(() => {
+    const savedLang = localStorage.getItem('portal_lang') as Lang;
+    if (savedLang && (savedLang === 'en' || savedLang === 'ua' || savedLang === 'ru')) {
+      setLang(savedLang);
+    }
     fetchSession();
     fetchKnowledge();
   }, []);
+
+  const changeLanguage = (newLang: Lang) => {
+    setLang(newLang);
+    localStorage.setItem('portal_lang', newLang);
+  };
+
+  const t = (key: string): string => {
+    return DICTIONARY[lang]?.[key] || DICTIONARY['en'][key] || key;
+  };
 
   const fetchSession = async () => {
     try {
@@ -327,8 +418,36 @@ export default function EmployeePortalDashboard() {
           </div>
         </div>
 
-        {/* User Badge & Logout */}
+        {/* User Badge, Language Switcher & Logout */}
         <div className="flex items-center space-x-3">
+          {/* Language Switcher */}
+          <div className="flex items-center bg-[#f1f3f4] border border-[#dadce0] rounded-full p-0.5 text-[11px] font-extrabold">
+            <button
+              onClick={() => changeLanguage('en')}
+              className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${
+                lang === 'en' ? 'bg-[#1a73e8] text-white shadow-xs' : 'text-[#5f6368] hover:text-[#202124]'
+              }`}
+            >
+              EN
+            </button>
+            <button
+              onClick={() => changeLanguage('ua')}
+              className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${
+                lang === 'ua' ? 'bg-[#1a73e8] text-white shadow-xs' : 'text-[#5f6368] hover:text-[#202124]'
+              }`}
+            >
+              UA
+            </button>
+            <button
+              onClick={() => changeLanguage('ru')}
+              className={`px-2.5 py-1 rounded-full transition-all cursor-pointer ${
+                lang === 'ru' ? 'bg-[#1a73e8] text-white shadow-xs' : 'text-[#5f6368] hover:text-[#202124]'
+              }`}
+            >
+              RU
+            </button>
+          </div>
+
           <div className="flex items-center space-x-2.5 px-3 py-1.5 rounded-full bg-[#f1f3f4] border border-[#dadce0]">
             <div className="w-7 h-7 rounded-full bg-[#1a73e8]/15 text-[#1a73e8] flex items-center justify-center font-bold text-xs">
               {initials}
@@ -361,7 +480,7 @@ export default function EmployeePortalDashboard() {
             }`}
           >
             <User className="w-3.5 h-3.5" />
-            <span>Profile & Vehicle</span>
+            <span>{t('tabOverview')}</span>
           </button>
 
           <button
@@ -373,7 +492,7 @@ export default function EmployeePortalDashboard() {
             }`}
           >
             <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-            <span>Work Issues & Support</span>
+            <span>{t('tabIssues')}</span>
           </button>
 
           <button
@@ -385,7 +504,7 @@ export default function EmployeePortalDashboard() {
             }`}
           >
             <DollarSign className="w-3.5 h-3.5" />
-            <span>Earnings & Weekly Rates</span>
+            <span>{t('tabPayroll')}</span>
           </button>
 
           <button
@@ -413,7 +532,7 @@ export default function EmployeePortalDashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-white border border-[#dadce0] rounded-2xl p-5 shadow-sm space-y-2">
                 <div className="flex items-center justify-between text-[#5f6368]">
-                  <span className="text-xs font-bold uppercase tracking-wider">Assigned Region</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">{t('region')}</span>
                   <MapPin className="w-4 h-4 text-[#1a73e8]" />
                 </div>
                 <p className="text-xl font-black text-[#202124]">{user.state.name}</p>
@@ -422,7 +541,7 @@ export default function EmployeePortalDashboard() {
 
               <div className="bg-white border border-[#dadce0] rounded-2xl p-5 shadow-sm space-y-2">
                 <div className="flex items-center justify-between text-[#5f6368]">
-                  <span className="text-xs font-bold uppercase tracking-wider">Personal Per Diem</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">{t('perDiem')}</span>
                   <DollarSign className="w-4 h-4 text-emerald-600" />
                 </div>
                 <p className="text-xl font-black text-emerald-700">${personalPerDiem.toFixed(2)} / day</p>
@@ -431,7 +550,7 @@ export default function EmployeePortalDashboard() {
 
               <div className="bg-white border border-[#dadce0] rounded-2xl p-5 shadow-sm space-y-2">
                 <div className="flex items-center justify-between text-[#5f6368]">
-                  <span className="text-xs font-bold uppercase tracking-wider">Specialization</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">{t('spec')}</span>
                   <Briefcase className="w-4 h-4 text-amber-600" />
                 </div>
                 <p className="text-xl font-black text-[#202124] capitalize">{user.workType.toLowerCase()} Spec</p>
@@ -457,8 +576,8 @@ export default function EmployeePortalDashboard() {
               <div className="flex items-center space-x-3 pb-3 border-b border-[#f1f3f4]">
                 <FileSpreadsheet className="w-5 h-5 text-[#1a73e8]" />
                 <div>
-                  <h3 className="font-extrabold text-base text-[#202124]">Paystubs & Weekly Statements (Зарплатные ведомости)</h3>
-                  <p className="text-xs text-[#5f6368]">Official weekly CSV & PDF paystubs uploaded from CRM Admin</p>
+                  <h3 className="font-extrabold text-base text-[#202124]">{t('paystubsTitle')}</h3>
+                  <p className="text-xs text-[#5f6368]">{t('paystubsSubtitle')}</p>
                 </div>
               </div>
 
