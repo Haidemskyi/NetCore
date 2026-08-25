@@ -79,6 +79,16 @@ interface JobLogItem {
   };
 }
 
+interface StatementDoc {
+  id: string;
+  name: string;
+  fileType: string;
+  size: number;
+  uploadedAt: string;
+  dataUrl: string;
+  category: string;
+}
+
 export default function EmployeePortalDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<TechUser | null>(null);
@@ -94,6 +104,7 @@ export default function EmployeePortalDashboard() {
   const [submittingIssue, setSubmittingIssue] = useState(false);
   const [issueMessage, setIssueMessage] = useState({ type: '', text: '' });
   const [myTickets, setMyTickets] = useState<IssueTicket[]>([]);
+  const [myDocuments, setMyDocuments] = useState<StatementDoc[]>([]);
 
   // Jobs & Payroll state
   const [jobs, setJobs] = useState<JobLogItem[]>([]);
@@ -116,11 +127,24 @@ export default function EmployeePortalDashboard() {
       if (data.id) {
         fetchTickets(data.id);
         fetchJobs();
+        fetchDocuments();
       }
     } catch (err) {
       router.push('/portal/login');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDocuments = async () => {
+    try {
+      const res = await fetch('/api/portal/documents');
+      if (res.ok) {
+        const data = await res.json();
+        setMyDocuments(data.documents || []);
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -428,40 +452,67 @@ export default function EmployeePortalDashboard() {
               </div>
             </div>
 
-            {/* Middle Section: Vehicle Info Card */}
+            {/* Middle Section: Paystubs & Weekly Statements (CRM Paystubs) */}
             <div className="bg-white border border-[#dadce0] rounded-2xl p-6 shadow-sm space-y-4">
               <div className="flex items-center space-x-3 pb-3 border-b border-[#f1f3f4]">
-                <Truck className="w-5 h-5 text-[#1a73e8]" />
-                <h3 className="font-extrabold text-base text-[#202124]">Fleet Vehicle Inspection & Info</h3>
+                <FileSpreadsheet className="w-5 h-5 text-[#1a73e8]" />
+                <div>
+                  <h3 className="font-extrabold text-base text-[#202124]">Paystubs & Weekly Statements (Зарплатные ведомости)</h3>
+                  <p className="text-xs text-[#5f6368]">Official weekly CSV & PDF paystubs uploaded from CRM Admin</p>
+                </div>
               </div>
 
-              {user.activeVehicle ? (
-                <div className="space-y-3 text-xs">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-[#f8f9fa] rounded-xl border border-[#dadce0]">
-                    <div>
-                      <span className="text-[#5f6368] font-medium block text-[10px]">Make & Model</span>
-                      <span className="font-bold text-[#202124]">{user.activeVehicle.year} {user.activeVehicle.make} {user.activeVehicle.model}</span>
-                    </div>
-                    <div>
-                      <span className="text-[#5f6368] font-medium block text-[10px]">License Plate</span>
-                      <span className="font-bold text-[#202124]">{user.activeVehicle.plateNumber}</span>
-                    </div>
-                    <div>
-                      <span className="text-[#5f6368] font-medium block text-[10px]">VIN Number</span>
-                      <span className="font-mono text-[11px] font-bold text-[#202124]">{user.activeVehicle.vin}</span>
-                    </div>
-                  </div>
+              <div className="space-y-2.5">
+                {myDocuments && myDocuments.length > 0 ? (
+                  myDocuments.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="p-3.5 bg-slate-900 text-white rounded-xl border border-slate-800 flex items-center justify-between shadow-xs hover:border-[#1a73e8] transition-all"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm">
+                          📊
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-bold text-xs text-slate-100">{doc.name}</span>
+                            <span className="px-2 py-0.5 text-[9px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md uppercase tracking-wider">
+                              STATEMENT
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            {doc.size ? `${(doc.size / 1024).toFixed(1)} KB` : '2 KB'} • Uploaded {new Date(doc.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
+                        </div>
+                      </div>
 
-                  <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center space-x-2">
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                    <span>Vehicle Status: <strong>Verified Active</strong> for daily field dispatch.</span>
+                      <div className="flex items-center space-x-2">
+                        <a
+                          href={doc.dataUrl.startsWith('data:') ? doc.dataUrl : `/api/documents/serve?id=${doc.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Preview Statement"
+                          className="p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-all cursor-pointer"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                        <a
+                          href={doc.dataUrl.startsWith('data:') ? doc.dataUrl : `/api/documents/serve?id=${doc.id}`}
+                          download={doc.name}
+                          title="Download Statement File"
+                          className="p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-all cursor-pointer"
+                        >
+                          <Download className="w-4 h-4" />
+                        </a>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-6 text-center text-xs text-[#5f6368] bg-[#f8f9fa] rounded-xl border border-[#dadce0] italic">
+                    No weekly statements uploaded yet. Your weekly paystub files from CRM will appear here automatically.
                   </div>
-                </div>
-              ) : (
-                <div className="p-6 text-center text-xs text-[#5f6368] bg-[#f8f9fa] rounded-xl border border-[#dadce0] italic">
-                  No active company vehicle assigned. If using personal truck, contact fleet manager.
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
           </div>
