@@ -51,7 +51,7 @@ export async function GET(request: Request) {
       color: rgb(0.102, 0.451, 0.91) // NetCore / Google Blue #1a73e8
     });
 
-    page.drawText('NETCORE COMMUNICATIONS LLC', {
+    page.drawText('NETCORE LLC', {
       x: 35,
       y: height - 40,
       size: 18,
@@ -156,7 +156,7 @@ export async function GET(request: Request) {
     });
 
     // Footer
-    page.drawText(`NetCore Communications LLC • Official Statement • Confidential`, {
+    page.drawText(`NetCore LLC • Official Statement • Confidential`, {
       x: 35,
       y: 25,
       size: 8,
