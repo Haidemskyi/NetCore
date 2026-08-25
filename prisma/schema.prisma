@@ -47,6 +47,13 @@ enum WorkType {
   FIBER
 }
 
+enum Role {
+  TECHNICIAN
+  FOREMAN
+  DISPATCHER
+  ADMIN
+}
+
 // Tech profiles and relation properties
 model Technician {
   id                Int                @id @default(autoincrement())
@@ -55,6 +62,7 @@ model Technician {
   email             String             @unique
   username          String?            @unique
   password          String?
+  role              Role               @default(TECHNICIAN)
   status            TechStatus         @default(ACTIVE)
   workType          WorkType           @default(BURY)
   stateId           Int
@@ -195,6 +203,8 @@ model Candidate {
   uploadToken      String?             @unique
   uploadExpiresAt  DateTime?
   uploadCompleted  Boolean             @default(false)
+  safetyQuizPassed Boolean             @default(false)
+  safetyQuizScore  Int                 @default(0)
   documents        CandidateDocument[]
   notes            String?
   createdAt        DateTime            @default(now())
@@ -257,5 +267,16 @@ model Ticket {
   notes     String?
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
+}
+
+// Technical manuals and knowledge base articles
+model KnowledgeArticle {
+  id        String   @id @default(uuid())
+  title     String
+  category  String   @default("GENERAL") // FIBER, BURIAL, SAFETY, FLEET, GENERAL
+  content   String
+  author    String   @default("Admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 

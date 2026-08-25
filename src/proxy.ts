@@ -4,11 +4,13 @@ import type { NextRequest } from 'next/server';
 export default function proxy(request: NextRequest) {
   // If this is an API route, check for authentication
   if (request.nextUrl.pathname.startsWith('/api/')) {
-    // Exempt login, bootstrap, signing, and mobile v1 API routes from admin session cookie check
+    // Exempt login, bootstrap, signing, portal, webhooks, and mobile v1 API routes from admin session cookie check
     if (
       request.nextUrl.pathname === '/api/auth/login' ||
       request.nextUrl.pathname === '/api/auth/logout' ||
       request.nextUrl.pathname === '/api/bootstrap' ||
+      request.nextUrl.pathname.startsWith('/api/portal/') ||
+      request.nextUrl.pathname.startsWith('/api/webhooks/') ||
       request.nextUrl.pathname.startsWith('/api/sign/') ||
       request.nextUrl.pathname.startsWith('/api/candidates/signing-link') ||
       request.nextUrl.pathname.startsWith('/api/candidates/upload-link') ||

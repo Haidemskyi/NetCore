@@ -323,9 +323,31 @@ export default function CandidateUploadPage() {
             </div>
           </div>
 
+          {/* Candidate Onboarding Status Stepper */}
+          <div className="pt-2">
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-2">Onboarding Progress Tracker</p>
+            <div className="grid grid-cols-5 gap-1.5 text-center text-[10px] font-bold">
+              <div className="p-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl">
+                1. Account
+              </div>
+              <div className="p-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl">
+                2. Rates
+              </div>
+              <div className="p-2 bg-[#1a73e8] text-white rounded-xl shadow-xs font-extrabold animate-pulse">
+                3. Docs
+              </div>
+              <div className="p-2 bg-slate-100 border border-slate-200 text-slate-400 rounded-xl">
+                4. Sign
+              </div>
+              <div className="p-2 bg-slate-100 border border-slate-200 text-slate-400 rounded-xl">
+                5. Hired
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-1">
             <p className="text-sm font-bold text-slate-900">
-              Welcome, <span className="text-blue-600">{candidateInfo?.firstName} {candidateInfo?.lastName}</span>
+              Welcome, <span className="text-[#1a73e8]">{candidateInfo?.firstName} {candidateInfo?.lastName}</span>
             </p>
             <p className="text-xs text-slate-600 leading-relaxed">
               Please upload clear photos of your 6 required onboarding documents. Once submitted, your secure link will automatically complete and deactivate.
@@ -336,14 +358,14 @@ export default function CandidateUploadPage() {
           <div className="space-y-2 pt-1">
             <div className="flex items-center justify-between text-xs font-bold font-mono">
               <span className="text-slate-500">UPLOAD PROGRESS</span>
-              <span className={uploadedCount === 6 ? 'text-emerald-600 font-extrabold' : 'text-blue-600'}>
+              <span className={uploadedCount === 6 ? 'text-emerald-600 font-extrabold' : 'text-[#1a73e8]'}>
                 {uploadedCount} of 6 Attached ({progressPercent}%)
               </span>
             </div>
             <div className="w-full bg-slate-100 border border-slate-200 h-3 rounded-full overflow-hidden p-0.5">
               <div
                 className={`h-full rounded-full transition-all duration-300 ${
-                  uploadedCount === 6 ? 'bg-emerald-500' : 'bg-blue-600'
+                  uploadedCount === 6 ? 'bg-emerald-500' : 'bg-[#1a73e8]'
                 }`}
                 style={{ width: `${progressPercent}%` }}
               />
