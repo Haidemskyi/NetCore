@@ -196,6 +196,7 @@ export default function EmployeePortalDashboard() {
   const [issueMessage, setIssueMessage] = useState({ type: '', text: '' });
   const [myTickets, setMyTickets] = useState<IssueTicket[]>([]);
   const [myDocuments, setMyDocuments] = useState<StatementDoc[]>([]);
+  const [previewDoc, setPreviewDoc] = useState<StatementDoc | null>(null);
 
   // Jobs & Payroll state
   const [jobs, setJobs] = useState<JobLogItem[]>([]);
@@ -747,19 +748,18 @@ export default function EmployeePortalDashboard() {
                       </div>
 
                       <div className="flex items-center space-x-1.5 shrink-0">
-                        <a
-                          href={doc.dataUrl.startsWith('data:') ? doc.dataUrl : `/api/documents/serve?id=${doc.id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          title="Preview Statement"
+                        <button
+                          type="button"
+                          onClick={() => setPreviewDoc(doc)}
+                          title="Preview Statement Breakdown"
                           className="p-2 rounded-lg bg-[#f1f3f4] text-[#5f6368] hover:text-[#1a73e8] hover:bg-[#e8f0fe] border border-transparent hover:border-[#1a73e8]/30 transition-all cursor-pointer"
                         >
                           <ExternalLink className="w-4 h-4" />
-                        </a>
+                        </button>
                         <a
-                          href={doc.dataUrl.startsWith('data:') ? doc.dataUrl : `/api/documents/serve?id=${doc.id}`}
-                          download={doc.name}
-                          title="Download Statement File"
+                          href={`/api/portal/payroll/pdf?docId=${doc.id}&technicianId=${user.id}`}
+                          download={doc.name.replace(/\.csv$/i, '') + '.pdf'}
+                          title="Download PDF Paystub"
                           className="p-2 rounded-lg bg-[#f1f3f4] text-[#5f6368] hover:text-emerald-700 hover:bg-emerald-50 border border-transparent hover:border-emerald-200 transition-all cursor-pointer"
                         >
                           <Download className="w-4 h-4" />
@@ -816,19 +816,18 @@ export default function EmployeePortalDashboard() {
                         </div>
 
                         <div className="flex items-center space-x-1.5 shrink-0">
-                          <a
-                            href={doc.dataUrl.startsWith('data:') ? doc.dataUrl : `/api/documents/serve?id=${doc.id}`}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDoc(doc)}
                             title="Preview Document"
                             className="p-2 rounded-lg bg-[#f1f3f4] text-[#5f6368] hover:text-[#1a73e8] hover:bg-[#e8f0fe] border border-transparent hover:border-[#1a73e8]/30 transition-all cursor-pointer"
                           >
                             <ExternalLink className="w-4 h-4" />
-                          </a>
+                          </button>
                           <a
-                            href={doc.dataUrl.startsWith('data:') ? doc.dataUrl : `/api/documents/serve?id=${doc.id}`}
-                            download={doc.name}
-                            title="Download Document File"
+                            href={`/api/portal/payroll/pdf?docId=${doc.id}&technicianId=${user.id}`}
+                            download={doc.name.toLowerCase().endsWith('.pdf') ? doc.name : `${doc.name}.pdf`}
+                            title="Download Document PDF"
                             className="p-2 rounded-lg bg-[#f1f3f4] text-[#5f6368] hover:text-[#1a73e8] hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-all cursor-pointer"
                           >
                             <Download className="w-4 h-4" />
@@ -1115,6 +1114,133 @@ export default function EmployeePortalDashboard() {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* Preview Modal for Paystubs & Documents */}
+        {previewDoc && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
+            <div className="bg-white border border-[#dadce0] rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+              
+              {/* Modal Header */}
+              <div className="p-4 sm:p-5 border-b border-[#f1f3f4] flex items-center justify-between bg-[#f8f9fa]">
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#e8f0fe] text-[#1a73e8] flex items-center justify-center font-bold">
+                    {isStatementDoc(previewDoc) ? '📊' : '📄'}
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm sm:text-base text-[#202124]">{previewDoc.name}</h3>
+                    <p className="text-[11px] text-[#5f6368]">
+                      Uploaded {new Date(previewDoc.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setPreviewDoc(null)}
+                  className="p-2 text-[#5f6368] hover:text-[#202124] hover:bg-[#e8eaed] rounded-full transition-all cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 p-4 sm:p-6 overflow-y-auto custom-scrollbar space-y-4">
+                {isStatementDoc(previewDoc) ? (
+                  // CSV Statement Table Breakdown
+                  (() => {
+                    let csvRaw = '';
+                    if (previewDoc.dataUrl.startsWith('data:text/csv;base64,')) {
+                      try { csvRaw = atob(previewDoc.dataUrl.replace(/^data:text\/csv;base64,/, '')); } catch (e) { csvRaw = previewDoc.dataUrl; }
+                    } else if (previewDoc.dataUrl.startsWith('data:')) {
+                      const idx = previewDoc.dataUrl.indexOf(',');
+                      if (idx !== -1) {
+                        const payload = previewDoc.dataUrl.substring(idx + 1);
+                        try { csvRaw = previewDoc.dataUrl.includes('base64') ? atob(payload) : decodeURIComponent(payload); } catch (e) { csvRaw = payload; }
+                      }
+                    } else {
+                      csvRaw = previewDoc.dataUrl;
+                    }
+
+                    const lines = csvRaw.split(/\r?\n/).filter(l => l.trim() !== '');
+                    const headers = lines.length > 0 ? lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '')) : [];
+                    const rows = lines.length > 1 ? lines.slice(1).map(line => line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))) : [];
+
+                    return (
+                      <div className="space-y-4">
+                        <div className="p-4 bg-[#e8f0fe]/50 border border-[#1a73e8]/20 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                          <div>
+                            <span className="text-[10px] font-extrabold text-[#1a73e8] uppercase tracking-wider">Statement Overview</span>
+                            <p className="text-sm font-black text-[#202124]">{previewDoc.name}</p>
+                          </div>
+                          <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-extrabold rounded-full">
+                            {rows.length} Line Items
+                          </span>
+                        </div>
+
+                        <div className="overflow-x-auto border border-[#dadce0] rounded-xl">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="bg-[#f1f3f4] border-b border-[#dadce0] text-[#5f6368] uppercase text-[10px] font-bold tracking-wider">
+                                {headers.map((h, i) => (
+                                  <th key={i} className="py-2.5 px-3">{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#f1f3f4]">
+                              {rows.map((row, rIdx) => (
+                                <tr key={rIdx} className="hover:bg-[#f8f9fa]">
+                                  {row.map((cell, cIdx) => (
+                                    <td key={cIdx} className={`py-2.5 px-3 ${cell.includes('$') ? 'font-extrabold text-emerald-700' : 'text-[#202124]'}`}>
+                                      {cell}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  // Document Viewer (PDF / Image)
+                  <div className="w-full h-[550px] bg-slate-100 rounded-xl border border-[#dadce0] overflow-hidden flex items-center justify-center">
+                    {previewDoc.dataUrl.startsWith('data:image') ? (
+                      <img src={previewDoc.dataUrl} alt={previewDoc.name} className="max-w-full max-h-full object-contain" />
+                    ) : (
+                      <iframe
+                        src={previewDoc.dataUrl.startsWith('data:') ? previewDoc.dataUrl : `/api/documents/serve?file=${encodeURIComponent(previewDoc.name)}`}
+                        className="w-full h-full border-0"
+                        title={previewDoc.name}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-[#f1f3f4] bg-[#f8f9fa] flex items-center justify-between">
+                <a
+                  href={`/api/portal/payroll/pdf?docId=${previewDoc.id}&technicianId=${user.id}`}
+                  download={previewDoc.name.replace(/\.csv$/i, '') + '.pdf'}
+                  className="py-2.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center space-x-2 cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download as PDF (Скачать PDF)</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => setPreviewDoc(null)}
+                  className="py-2.5 px-5 bg-white border border-[#dadce0] hover:bg-[#f1f3f4] text-[#202124] font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+
+            </div>
           </div>
         )}
 
