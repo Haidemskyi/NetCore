@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       email: tech.email,
       phone: tech.phone,
       username: tech.username,
-      role: tech.role,
+      role: (tech as any).role || 'TECHNICIAN',
       workType: tech.workType,
       status: tech.status,
       payoutType: tech.payoutType,

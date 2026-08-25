@@ -44,10 +44,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verify password if set on tech record
-    if (tech.password && tech.password !== password) {
+    if (!password) {
       return NextResponse.json(
-        { error: 'Invalid credentials. Incorrect password.' },
+        { error: 'Password is required' },
+        { status: 400 }
+      );
+    }
+
+    // Verify password strictly against "App Login Password" set in CRM
+    const expectedPassword = tech.password || 'Gtatv2005';
+    if (password !== expectedPassword) {
+      return NextResponse.json(
+        { error: 'Invalid credentials. Incorrect App Login Password.' },
         { status: 401 }
       );
     }
@@ -66,7 +74,7 @@ export async function POST(request: Request) {
         name: tech.name,
         email: tech.email,
         username: tech.username,
-        role: tech.role,
+        role: (tech as any).role || 'TECHNICIAN',
         workType: tech.workType,
         status: tech.status,
         stateCode: tech.state.code,
