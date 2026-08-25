@@ -675,7 +675,6 @@ export default function EmployeePortalDashboard() {
                       <th className="py-2.5 px-3">Job Code</th>
                       <th className="py-2.5 px-3">Description</th>
                       <th className="py-2.5 px-3">City</th>
-                      <th className="py-2.5 px-3">Gross Revenue</th>
                       <th className="py-2.5 px-3">Your Payout</th>
                     </tr>
                   </thead>
@@ -687,13 +686,12 @@ export default function EmployeePortalDashboard() {
                           <td className="py-3 px-3 font-bold text-[#1a73e8]">{j.ratePlan.code}</td>
                           <td className="py-3 px-3 text-[#202124] font-medium">{j.ratePlan.description}</td>
                           <td className="py-3 px-3 text-[#5f6368]">{j.city.name}</td>
-                          <td className="py-3 px-3 font-bold text-[#5f6368]">${Number(j.companyRevenue).toFixed(2)}</td>
                           <td className="py-3 px-3 font-extrabold text-emerald-700">${Number(j.techPayout).toFixed(2)}</td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6} className="py-6 text-center text-[#5f6368] italic">
+                        <td colSpan={5} className="py-6 text-center text-[#5f6368] italic">
                           No completed jobs recorded yet.
                         </td>
                       </tr>

@@ -95,12 +95,11 @@ export async function GET(request: Request) {
     page.drawText(`Email: ${tech.email}`, { x: 35, y, size: 9, font: font, color: rgb(0.3, 0.3, 0.3) });
     page.drawText(`Specialization: ${tech.workType}`, { x: 320, y, size: 9, font: font, color: rgb(0.3, 0.3, 0.3) });
     y -= 16;
-    page.drawText(`Payout Structure: ${tech.payoutType === 'PERCENTAGE' ? `${tech.payoutValue}% of Gross` : `$${tech.payoutValue}/job`}`, { x: 35, y, size: 9, font: font, color: rgb(0.3, 0.3, 0.3) });
-    page.drawText(`Personal Per Diem Rate: $${perDiemRate.toFixed(2)} / day`, { x: 320, y, size: 9, font: fontBold, color: rgb(0.1, 0.5, 0.2) });
+    page.drawText(`Personal Per Diem Rate: $${perDiemRate.toFixed(2)} / day`, { x: 35, y, size: 9, font: fontBold, color: rgb(0.1, 0.5, 0.2) });
 
     y -= 30;
 
-    // Summary Box
+    // Summary Box (Clean Employee View)
     page.drawRectangle({
       x: 35,
       y: y - 40,
@@ -114,8 +113,8 @@ export async function GET(request: Request) {
     page.drawText(`TOTAL COMPLETED JOBS`, { x: 50, y: y - 15, size: 8, font: fontBold, color: rgb(0.4, 0.4, 0.4) });
     page.drawText(`${tech.jobs.length} Orders`, { x: 50, y: y - 32, size: 12, font: fontBold, color: rgb(0.1, 0.1, 0.1) });
 
-    page.drawText(`TOTAL GROSS REVENUE`, { x: 230, y: y - 15, size: 8, font: fontBold, color: rgb(0.4, 0.4, 0.4) });
-    page.drawText(`$${totalCompanyGross.toFixed(2)}`, { x: 230, y: y - 32, size: 12, font: fontBold, color: rgb(0.1, 0.1, 0.1) });
+    page.drawText(`DAILY PER DIEM RATE`, { x: 230, y: y - 15, size: 8, font: fontBold, color: rgb(0.4, 0.4, 0.4) });
+    page.drawText(`$${perDiemRate.toFixed(2)} / day`, { x: 230, y: y - 32, size: 12, font: fontBold, color: rgb(0.1, 0.5, 0.2) });
 
     page.drawText(`TOTAL TECHNICIAN EARNINGS`, { x: 410, y: y - 15, size: 8, font: fontBold, color: rgb(0.4, 0.4, 0.4) });
     page.drawText(`$${totalEarnings.toFixed(2)}`, { x: 410, y: y - 32, size: 13, font: fontBold, color: rgb(0.1, 0.45, 0.9) });
