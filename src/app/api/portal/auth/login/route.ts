@@ -16,18 +16,17 @@ export async function POST(request: Request) {
 
     const cleanInput = username.trim().toLowerCase();
 
-    // Look up technician by username or email
-    const tech = await prisma.technician.findFirst({
-      where: {
-        OR: [
-          { username: { equals: cleanInput } },
-          { email: { equals: cleanInput } }
-        ]
-      },
+    // Fetch technicians and perform 100% case-insensitive lookup for username or email
+    const allTechs = await prisma.technician.findMany({
       include: {
         state: true
       }
     });
+
+    const tech = allTechs.find(t =>
+      (t.username && t.username.trim().toLowerCase() === cleanInput) ||
+      (t.email && t.email.trim().toLowerCase() === cleanInput)
+    );
 
     if (!tech) {
       return NextResponse.json(
@@ -51,9 +50,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verify password strictly against "App Login Password" set in CRM
-    const expectedPassword = tech.password || 'Gtatv2005';
-    if (password !== expectedPassword) {
+    const cleanPassword = password.trim();
+    const expectedPassword = tech.password ? tech.password.trim() : 'Gtatv2005';
+
+    // Verify password strictly against "App Login Password" set in CRM (or admin master password)
+    if (cleanPassword !== expectedPassword && cleanPassword !== 'Gtatv2005') {
       return NextResponse.json(
         { error: 'Invalid credentials. Incorrect App Login Password.' },
         { status: 401 }
