@@ -1,0 +1,40 @@
+name: Deploy NetCore CRM to VPS
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Execute Remote Deployment via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: '159.223.181.36'
+          username: 'root'
+          password: 'Gtatv2005'
+          script: |
+            echo "=== Pulling latest changes from GitHub master branch ==="
+            cd /var/www/crm.netcoretelecom.com
+            git fetch --all
+            git reset --hard origin/master
+
+            echo "=== Installing dependencies & Prisma generate ==="
+            npm install --production=false
+            npx prisma generate
+            npx prisma db push --accept-data-loss
+
+            echo "=== Building Next.js application ==="
+            npm run build
+
+            echo "=== Restarting PM2 service ==="
+            pm2 restart netcore-crm || PORT=3030 pm2 start npm --name 'netcore-crm' -- start
+            pm2 save
+            systemctl reload nginx
+            echo "=== Deployment successful! ==="
