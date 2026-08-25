@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export default function proxy(request: NextRequest) {
+  const hostname = request.headers.get('host') || request.nextUrl.hostname;
+
+  // Subdomain routing: if host is portal.netcoretelecom.com and path is root '/', rewrite to /portal
+  if (hostname.includes('portal.netcoretelecom.com') && request.nextUrl.pathname === '/') {
+    return NextResponse.rewrite(new URL('/portal', request.url));
+  }
+
   // If this is an API route, check for authentication
   if (request.nextUrl.pathname.startsWith('/api/')) {
     // Exempt login, bootstrap, signing, portal, webhooks, and mobile v1 API routes from admin session cookie check
@@ -41,7 +48,8 @@ export default function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Configure middleware to only run on API routes
+// Configure middleware matcher
 export const config = {
-  matcher: '/api/:path*',
+  matcher: ['/api/:path*', '/'],
 };
+
