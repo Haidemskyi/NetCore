@@ -4962,11 +4962,11 @@ export default function Home() {
                           className="bg-transparent border-none text-zinc-200 focus:outline-none cursor-pointer text-xs"
                         >
                           <option value="ALL" className="bg-[#18181b]">All Statuses</option>
-                          <option value="ONBOARDING" className="bg-[#18181b]">Onboarding / Hiring</option>
+                          <option value="ONBOARDING" className="bg-[#18181b]">Onboarding</option>
                           <option value="TRAINING" className="bg-[#18181b]">Training</option>
                           <option value="ACTIVE" className="bg-[#18181b]">Active</option>
                           <option value="INACTIVE" className="bg-[#18181b]">Inactive</option>
-                          <option value="SUSPENDED" className="bg-[#18181b]">Suspended</option>
+                          <option value="SUSPENDED" className="bg-[#18181b]">Suspended / Inactive</option>
                         </select>
                       </div>
                     </div>
@@ -7606,11 +7606,11 @@ return (
                     onChange={(e) => setTechForm({ ...techForm, status: e.target.value as TechStatus })}
                     className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-[#3b82f6] font-semibold"
                   >
-                    <option value="ONBOARDING">Onboarding / Hiring Stage</option>
-                    <option value="TRAINING">Training Stage</option>
+                    <option value="ONBOARDING">Onboarding</option>
+                    <option value="TRAINING">Training</option>
                     <option value="ACTIVE">Active</option>
                     <option value="INACTIVE">Inactive</option>
-                    <option value="SUSPENDED">Suspended</option>
+                    <option value="SUSPENDED">Suspended / Inactive</option>
                   </select>
                 </div>
               </div>
