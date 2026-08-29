@@ -4962,6 +4962,8 @@ export default function Home() {
                           className="bg-transparent border-none text-zinc-200 focus:outline-none cursor-pointer text-xs"
                         >
                           <option value="ALL" className="bg-[#18181b]">All Statuses</option>
+                          <option value="ONBOARDING" className="bg-[#18181b]">Onboarding / Hiring</option>
+                          <option value="TRAINING" className="bg-[#18181b]">Training</option>
                           <option value="ACTIVE" className="bg-[#18181b]">Active</option>
                           <option value="INACTIVE" className="bg-[#18181b]">Inactive</option>
                           <option value="SUSPENDED" className="bg-[#18181b]">Suspended</option>
@@ -5071,7 +5073,11 @@ export default function Home() {
                                   <td className="py-3.5 px-5">
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wide border ${
                                       tech.status === 'ACTIVE' 
-                                        ? 'bg-zinc-800/30 text-zinc-300 border-emerald-500/20'
+                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                        : tech.status === 'TRAINING'
+                                        ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                                        : tech.status === 'ONBOARDING'
+                                        ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'
                                         : tech.status === 'SUSPENDED'
                                         ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
                                         : 'bg-slate-500/10 text-zinc-400 border-slate-500/20'
@@ -5209,7 +5215,11 @@ export default function Home() {
                                   <div className="flex items-center space-x-2 mt-1">
                                     <span className={`px-2 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wide border ${
                                       tech.status === 'ACTIVE' 
-                                        ? 'bg-zinc-800/30 text-zinc-300 border-emerald-500/20'
+                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                        : tech.status === 'TRAINING'
+                                        ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                                        : tech.status === 'ONBOARDING'
+                                        ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'
                                         : tech.status === 'SUSPENDED'
                                         ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
                                         : 'bg-slate-500/10 text-zinc-400 border-slate-500/20'
@@ -7596,6 +7606,8 @@ return (
                     onChange={(e) => setTechForm({ ...techForm, status: e.target.value as TechStatus })}
                     className="w-full bg-[#09090b] border border-[#27272a] rounded-md px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-[#3b82f6] font-semibold"
                   >
+                    <option value="ONBOARDING">Onboarding / Hiring Stage</option>
+                    <option value="TRAINING">Training Stage</option>
                     <option value="ACTIVE">Active</option>
                     <option value="INACTIVE">Inactive</option>
                     <option value="SUSPENDED">Suspended</option>

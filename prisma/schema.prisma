@@ -36,6 +36,8 @@ model City {
 }
 
 enum TechStatus {
+  ONBOARDING
+  TRAINING
   ACTIVE
   INACTIVE
   SUSPENDED

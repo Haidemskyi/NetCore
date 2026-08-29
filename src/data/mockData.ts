@@ -1,5 +1,5 @@
 // Types mirroring our Prisma DB schema
-export type TechStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+export type TechStatus = 'ONBOARDING' | 'TRAINING' | 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
 export type WorkType = 'BURY' | 'COAX' | 'FIBER';
 export type OwnershipType = 'COMPANY' | 'PERSONAL';
 export type VehicleStatus = 'ACTIVE' | 'MAINTENANCE' | 'RETIRED';

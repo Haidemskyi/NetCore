@@ -67,14 +67,18 @@ export default function Sidebar({
 
   // Technician filtering states
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ONBOARDING' | 'TRAINING' | 'ACTIVE' | 'INACTIVE'>('ALL');
 
   // Filter technicians
   const filteredTechs = technicians.filter(tech => {
     const matchesSearch = tech.name.toLowerCase().includes(searchQuery.toLowerCase());
     
     let matchesStatus = true;
-    if (statusFilter === 'ACTIVE') {
+    if (statusFilter === 'ONBOARDING') {
+      matchesStatus = tech.status === 'ONBOARDING';
+    } else if (statusFilter === 'TRAINING') {
+      matchesStatus = tech.status === 'TRAINING';
+    } else if (statusFilter === 'ACTIVE') {
       matchesStatus = tech.status === 'ACTIVE';
     } else if (statusFilter === 'INACTIVE') {
       matchesStatus = tech.status === 'INACTIVE' || tech.status === 'SUSPENDED';
@@ -314,20 +318,21 @@ export default function Sidebar({
                 </div>
 
                 {/* Filters Pill Switcher */}
-                <div className={`p-1 rounded-full border flex gap-1 text-[10px] font-bold text-center ${
+                <div className={`p-1 rounded-full border flex gap-0.5 text-[9px] font-bold text-center ${
                   isLight ? 'bg-slate-100 border-[#dadce0]' : 'bg-[#1a1c23] border-[#2c2f38]'
                 }`}>
-                  {(['ALL', 'ACTIVE', 'INACTIVE'] as const).map((status) => (
+                  {(['ALL', 'ONBOARDING', 'TRAINING', 'ACTIVE', 'INACTIVE'] as const).map((status) => (
                     <button
                       key={status}
                       onClick={() => setStatusFilter(status)}
-                      className={`flex-1 py-1 rounded-full transition-all cursor-pointer ${
+                      className={`flex-1 py-1 px-1 rounded-full transition-all cursor-pointer truncate ${
                         statusFilter === status 
                           ? 'bg-[#1a73e8] text-white shadow-sm font-extrabold' 
                           : isLight ? 'text-[#5f6368] hover:text-[#202124] font-semibold' : 'text-[#9aa0a6] hover:text-white font-semibold'
                       }`}
+                      title={status}
                     >
-                      {status === 'ALL' ? 'All' : status === 'ACTIVE' ? 'Active' : 'Inactive'}
+                      {status === 'ALL' ? 'All' : status === 'ONBOARDING' ? 'Hiring' : status === 'TRAINING' ? 'Train' : status === 'ACTIVE' ? 'Active' : 'Off'}
                     </button>
                   ))}
                 </div>
@@ -368,7 +373,17 @@ export default function Sidebar({
                             </p>
                           </div>
 
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${tech.status === 'ACTIVE' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/20' : 'bg-zinc-500'}`} />
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                            tech.status === 'ACTIVE' 
+                              ? 'bg-emerald-500 shadow-sm shadow-emerald-500/20' 
+                              : tech.status === 'TRAINING'
+                              ? 'bg-purple-500 shadow-sm shadow-purple-500/20'
+                              : tech.status === 'ONBOARDING'
+                              ? 'bg-cyan-500 shadow-sm shadow-cyan-500/20'
+                              : tech.status === 'SUSPENDED'
+                              ? 'bg-rose-500 shadow-sm shadow-rose-500/20'
+                              : 'bg-zinc-500'
+                          }`} />
                         </div>
                       );
                     })
